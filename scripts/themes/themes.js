@@ -1,6 +1,26 @@
-// The diff themes, as light and dark pairs: the page follows the system's mode and takes the theme's colours (Pierre
+import { registerCustomTheme } from "@pierre/diffs";
+
+// Themes that don't ship with Pierre, copied from Zed extensions with their licences (see each folder) and registered
+// under these names. A Nightfox file holds the whole family; its loader picks the member.
+const fromFamily = (load, name) => () => load().then((m) => m.default.themes.find((t) => t.name === name));
+registerCustomTheme("jetbrains-light", () => import("./jetbrains/jetbrains-light.json"), "zed");
+registerCustomTheme("jetbrains-dark", () => import("./jetbrains/jetbrains-dark.json"), "zed");
+registerCustomTheme("jetbrains-islands-light", () => import("./jetbrains/jetbrains-islands-light.json"), "zed");
+registerCustomTheme("jetbrains-islands-dark", () => import("./jetbrains/jetbrains-islands-dark.json"), "zed");
+const nightfox = () => import("./nightfox/nightfox.json");
+for (const [id, name] of [
+  ["dayfox", "Dayfox - opaque"],
+  ["dawnfox", "Dawnfox - opaque"],
+  ["nightfox", "Nightfox - opaque"],
+  ["duskfox", "Duskfox - opaque"],
+  ["nordfox", "Nordfox - opaque"],
+]) {
+  registerCustomTheme(id, fromFamily(nightfox, name), "zed");
+}
+
+// The diff themes, as light and dark pairs: the page follows the chosen mode and takes the theme's background (Pierre
 // keeps the page's own). Each side's colours draw its preview in the picker; they are the background, text, keyword,
-// string and function colours of that theme in @pierre/highlights.
+// string and function colours of that theme in @pierre/highlights or in its file here.
 export const THEME_GROUPS = [
   { name: "Default", themes: [
     { id: "pierre", name: "Pierre",
@@ -29,6 +49,9 @@ export const THEME_GROUPS = [
     { id: "rose-pine", name: "Rosé Pine",
       light: { theme: "rose-pine-dawn", bg: "#faf4ed", fg: "#575279", kw: "#286983", str: "#ea9d34", fn: "#d7827e" },
       dark: { theme: "rose-pine-moon", bg: "#232136", fg: "#e0def4", kw: "#3e8fb0", str: "#f6c177", fn: "#ea9a97" } },
+    { id: "dawnfox", name: "Dawnfox",
+      light: { theme: "dawnfox", bg: "#faf4ed", fg: "#575279", kw: "#907aa9", str: "#618774", fn: "#295e73" },
+      dark: { theme: "duskfox", bg: "#232136", fg: "#e0def4", kw: "#c4a7e7", str: "#a3be8c", fn: "#65b1cd" } },
     { id: "everforest", name: "Everforest",
       light: { theme: "everforest-light", bg: "#fdf6e3", fg: "#5c6a72", kw: "#f85552", str: "#35a77c", fn: "#8da101" },
       dark: { theme: "everforest-dark", bg: "#2d353b", fg: "#d3c6aa", kw: "#e67e80", str: "#83c092", fn: "#a7c080" } },
@@ -55,6 +78,12 @@ export const THEME_GROUPS = [
     { id: "vscode", name: "VS Code",
       light: { theme: "light-plus", bg: "#ffffff", fg: "#000000", kw: "#0000ff", str: "#a31515", fn: "#795e26" },
       dark: { theme: "dark-plus", bg: "#1e1e1e", fg: "#d4d4d4", kw: "#569cd6", str: "#ce9178", fn: "#dcdcaa" } },
+    { id: "jetbrains", name: "JetBrains",
+      light: { theme: "jetbrains-light", bg: "#ffffff", fg: "#080808", kw: "#0033b3", str: "#067d17", fn: "#00627a" },
+      dark: { theme: "jetbrains-dark", bg: "#1e1f22", fg: "#bcbec4", kw: "#cf8e6d", str: "#6aab73", fn: "#6aa2d7" } },
+    { id: "jetbrains-islands", name: "JetBrains Islands",
+      light: { theme: "jetbrains-islands-light", bg: "#ffffff", fg: "#080808", kw: "#0033b3", str: "#067d17", fn: "#00627a" },
+      dark: { theme: "jetbrains-islands-dark", bg: "#191a1c", fg: "#bcbec4", kw: "#cf8e6d", str: "#6aab73", fn: "#56a8f5" } },
     { id: "one", name: "One",
       light: { theme: "one-light", bg: "#fafafa", fg: "#383a42", kw: "#a626a4", str: "#50a14f", fn: "#4078f2" },
       dark: { theme: "one-dark-pro", bg: "#23272e", fg: "#abb2bf", kw: "#c678dd", str: "#98c379", fn: "#61afef" } },
@@ -76,6 +105,12 @@ export const THEME_GROUPS = [
     { id: "night-owl", name: "Night Owl",
       light: { theme: "night-owl-light", bg: "#fbfbfb", fg: "#403f53", kw: "#994cc3", str: "#c96765", fn: "#4876d6" },
       dark: { theme: "night-owl", bg: "#011627", fg: "#d6deeb", kw: "#c792ea", str: "#ecc48d", fn: "#82aaff" } },
+    { id: "nightfox", name: "Nightfox",
+      light: { theme: "dayfox", bg: "#f6f2ee", fg: "#3d2b5a", kw: "#6e33ce", str: "#396847", fn: "#223d90" },
+      dark: { theme: "nightfox", bg: "#192330", fg: "#cdcecf", kw: "#9d79d6", str: "#81b29a", fn: "#86abdc" } },
+    { id: "nordfox", name: "Nordfox",
+      light: { theme: "dayfox", bg: "#f6f2ee", fg: "#3d2b5a", kw: "#6e33ce", str: "#396847", fn: "#223d90" },
+      dark: { theme: "nordfox", bg: "#2e3440", fg: "#cdcecf", kw: "#b48ead", str: "#a3be8c", fn: "#8cafd2" } },
     { id: "slack", name: "Slack",
       light: { theme: "slack-ochin", bg: "#ffffff", fg: "#000000", kw: "#7b30d0", str: "#a44185", fn: "#7eb233" },
       dark: { theme: "slack-dark", bg: "#222222", fg: "#e6e6e6", kw: "#569cd6", str: "#ce9178", fn: "#dcdcaa" } },

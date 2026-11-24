@@ -1,0 +1,7 @@
+This software includes code from IntelliJ IDEA Community Edition
+Copyright (C) JetBrains s.r.o.
+https://www.jetbrains.com/idea/
+
+The theme files in this folder are copied from https://github.com/artemevsevev/zed-theme-jetbrains
+(themes/*.json, Copyright 2025 Artem Evsevev, Apache License 2.0). Each one is unchanged except for its first
+line, the copyright comment, which is removed because JSON has no comments; the copyright is kept here.
