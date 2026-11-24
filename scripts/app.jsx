@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels";
 
+import { THEME_GROUPS, THEMES, themeOf } from "./themes/themes.js";
+
 // The page asks the review server for its data, and hears from it when jj records an operation.
 let SETTINGS = null;
 
@@ -82,7 +84,9 @@ function ChangeId({ change }) {
 
 const TREE_CSS = [
   "button { font-weight: inherit; }",
-  '[data-item-section="decoration"] { color: light-dark(#157e3c, #6fdc8c); font-weight: 600; }',
+  '[data-item-section="decoration"] { color: var(--green); font-weight: 600; }',
+  // Names read in the page's ink; the status letter beside them carries the colour.
+  '[data-item-section="content"] { color: var(--trees-fg); }',
   "[data-file-tree-search-container] { padding: 2px 8px 10px; }",
   "[data-file-tree-search-input] { height: 30px; box-sizing: border-box; padding: 0 10px; border: 1px solid var(--line);",
   "  border-radius: 6px; background: var(--bg); color: var(--text); font: 450 13px/1 var(--font); box-shadow: none; }",
@@ -132,7 +136,6 @@ function Tree({ change, viewed, onOpen }) {
 const paragraphs = (text) => text.split(/\n\s*\n/).map((p) => p.replace(/\s*\n\s*/g, " ").trim()).filter(Boolean);
 
 const baseOptions = {
-  theme: { light: "pierre-light", dark: "pierre-dark" },
   stickyHeaders: true,
   lineDiffType: "word",
   preferredHighlighter: "highlights",
@@ -149,15 +152,23 @@ const baseOptions = {
 
 // One options object per display combination, so CodeView sees the same object until a toggle changes.
 const optionsCache = new Map();
-function optionsFor({ diffStyle, wrap, expandAll }) {
-  const key = `${diffStyle}:${wrap}:${expandAll}`;
+function optionsFor({ diffStyle, wrap, expandAll }, themeId, mode) {
+  const key = `${diffStyle}:${wrap}:${expandAll}:${themeId}:${mode}`;
   if (!optionsCache.has(key)) {
-    optionsCache.set(key, { ...baseOptions, diffStyle, overflow: wrap ? "wrap" : "scroll", expandUnchanged: expandAll });
+    const { light, dark } = themeOf(themeId);
+    optionsCache.set(key, {
+      ...baseOptions,
+      theme: { light: light.theme, dark: dark.theme },
+      themeType: mode,
+      diffStyle,
+      overflow: wrap ? "wrap" : "scroll",
+      expandUnchanged: expandAll,
+    });
   }
   return optionsCache.get(key);
 }
 
-function Diffs({ change, viewerRef, display, viewed, onToggleViewed }) {
+function Diffs({ change, viewerRef, display, themeId, mode, viewed, onToggleViewed }) {
   const [items, setItems] = useState(() => reconcile([], change, viewed));
   useEffect(() => {
     setItems((current) => reconcile(current, change, viewed));
@@ -167,7 +178,7 @@ function Diffs({ change, viewerRef, display, viewed, onToggleViewed }) {
       ref={viewerRef}
       items={items}
       className="diffs"
-      options={optionsFor(display)}
+      options={optionsFor(display, themeId, mode)}
       renderHeaderMetadata={(item) => (
         <span className="file-actions">
           <button
@@ -199,6 +210,202 @@ function Toggle({ label, pressed, onChange }) {
       {label}
     </button>
   );
+}
+
+// A theme's look in a few lines of code: its background with a keyword, a string and a function in its colours.
+function Swatch({ side }) {
+  return (
+    <span className="swatch" style={{ background: side.bg }} aria-hidden="true">
+      <i style={{ background: side.kw, width: "45%" }} />
+      <i style={{ background: side.str, width: "75%" }} />
+      <i style={{ background: side.fn, width: "60%" }} />
+    </span>
+  );
+}
+
+function ThemePair({ theme }) {
+  return (
+    <span className="pair">
+      <Swatch side={theme.light} />
+      <Swatch side={theme.dark} />
+    </span>
+  );
+}
+
+const MODES = [
+  { id: "system", label: "System", icon: <path d="M2.5 3.5h11v7h-11zM6 13.5h4M8 10.5v3" /> },
+  { id: "light", label: "Light", icon: <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1 1M11.6 11.6l1 1M3.4 12.6l1-1M11.6 4.4l1-1" /> },
+  { id: "dark", label: "Dark", icon: <path d="M13 9.5A5.5 5.5 0 0 1 6.5 3a5.5 5.5 0 1 0 6.5 6.5z" /> },
+];
+
+const chevron = (
+  <svg className="chevron" viewBox="0 0 16 16" aria-hidden="true">
+    <path d="m5 6.5 3-3 3 3M5 9.5l3 3 3-3" />
+  </svg>
+);
+
+// The theme dropdown at the foot of the sidebar: it opens upwards, with the mode (System, Light, Dark) on top and the
+// themes grouped by feel, each with its light and dark preview. In the list, arrow keys, Home and End move, a letter
+// jumps to the next theme starting with it, Enter picks; Escape closes, and so does focus leaving the picker. A mouse
+// press inside the picker never moves focus (the list keeps it, as in a native menu), so every browser agrees on
+// where focus is and a click outside is focus leaving.
+function ThemePicker({ value, onChange, mode, onMode }) {
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(value);
+  const root = useRef(null);
+  const trigger = useRef(null);
+  const list = useRef(null);
+  const current = themeOf(value);
+
+  const show = () => {
+    setActive(current.id);
+    setOpen(true);
+  };
+  const close = () => {
+    setOpen(false);
+    trigger.current?.focus();
+  };
+  const pick = (id) => {
+    onChange(id);
+    close();
+  };
+  const moveTo = (id) => {
+    setActive(id);
+    list.current?.querySelector(`[data-id="${id}"]`)?.scrollIntoView({ block: "nearest" });
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    list.current?.focus();
+    list.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "center" });
+  }, [open]);
+
+  const onListKey = (event) => {
+    const at = THEMES.findIndex((t) => t.id === active);
+    const go = { ArrowDown: at + 1, ArrowUp: at - 1, Home: 0, End: THEMES.length - 1 }[event.key];
+    if (go !== undefined) {
+      event.preventDefault();
+      moveTo(THEMES[Math.max(0, Math.min(THEMES.length - 1, go))].id);
+    } else if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      pick(active);
+    } else if (event.key.length === 1 && /\S/.test(event.key)) {
+      const letter = event.key.toLowerCase();
+      const next = [...THEMES.slice(at + 1), ...THEMES.slice(0, at + 1)].find((t) => t.name.toLowerCase().startsWith(letter));
+      if (next) moveTo(next.id);
+    }
+  };
+
+  return (
+    <div
+      className="theme-picker"
+      ref={root}
+      onMouseDown={(event) => event.preventDefault()}
+      onKeyDown={(event) => {
+        if (open && event.key === "Escape") {
+          event.preventDefault();
+          close();
+        }
+      }}
+      onBlur={(event) => {
+        if (open && !root.current?.contains(event.relatedTarget)) setOpen(false);
+      }}
+    >
+      {open && (
+        <div className="theme-pop">
+          <div className="theme-panel">
+            <div className="mode" role="group" aria-label="Mode">
+              {MODES.map((m) => (
+                <button key={m.id} type="button" aria-pressed={mode === m.id} onClick={() => onMode(m.id)}>
+                  <svg viewBox="0 0 16 16" aria-hidden="true">
+                    {m.icon}
+                  </svg>
+                  {m.label}
+                </button>
+              ))}
+            </div>
+            <ul
+              ref={list}
+              id="theme-list"
+              role="listbox"
+              tabIndex={-1}
+              aria-label="Theme"
+              aria-activedescendant={`theme-${active}`}
+              onKeyDown={onListKey}
+            >
+              {THEME_GROUPS.map((group) => (
+                <li key={group.name} role="presentation">
+                  <p className="theme-group" id={`theme-group-${group.name}`}>
+                    {group.name}
+                  </p>
+                  <ul role="group" aria-labelledby={`theme-group-${group.name}`}>
+                    {group.themes.map((theme) => (
+                      <li
+                        key={theme.id}
+                        id={`theme-${theme.id}`}
+                        data-id={theme.id}
+                        role="option"
+                        aria-selected={theme.id === value}
+                        data-active={theme.id === active || undefined}
+                        onPointerMove={() => setActive(theme.id)}
+                        onClick={() => pick(theme.id)}
+                      >
+                        <ThemePair theme={theme} />
+                        <span className="theme-name">{theme.name}</span>
+                        <svg className="tick" viewBox="0 0 16 16" aria-hidden="true">
+                          <path d="m4 8.5 2.5 2.5 5.5-6" />
+                        </svg>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+      <button
+        ref={trigger}
+        type="button"
+        className="theme-trigger"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={open ? "theme-list" : undefined}
+        aria-label={`Theme: ${current.name}`}
+        onClick={() => (open ? close() : show())}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+            event.preventDefault();
+            show();
+          }
+        }}
+      >
+        <ThemePair theme={current} />
+        <span className="theme-name">{current.name}</span>
+        <span className="theme-kicker">Theme</span>
+        {chevron}
+      </button>
+    </div>
+  );
+}
+
+// The page takes the picked theme's background for both modes; Pierre keeps the page's own colours.
+function usePageTheme(themeId, mode) {
+  useEffect(() => {
+    if (mode === "system") delete document.documentElement.dataset.mode;
+    else document.documentElement.dataset.mode = mode;
+  }, [mode]);
+  useEffect(() => {
+    const root = document.documentElement;
+    const theme = themeOf(themeId);
+    const own = theme.id === THEMES[0].id;
+    for (const [mode, side] of [["l", theme.light], ["d", theme.dark]]) {
+      if (own) root.style.removeProperty(`--fam-${mode}-bg`);
+      else root.style.setProperty(`--fam-${mode}-bg`, side.bg);
+    }
+    if (own) delete root.dataset.family;
+    else root.dataset.family = theme.id;
+  }, [themeId]);
 }
 
 // Follows the server's change stream, re-reading the data when jj records an operation.
@@ -239,10 +446,24 @@ function App({ initial }) {
   const [display, setDisplay] = useState(() =>
     stored("guided-review:display", { diffStyle: "unified", wrap: false, expandAll: false })
   );
+  const [themeId, setThemeId] = useState(() => themeOf(stored("guided-review:theme", THEMES[0].id)).id);
+  const [mode, setMode] = useState(() => {
+    const saved = stored("guided-review:mode", "system");
+    return MODES.some((m) => m.id === saved) ? saved : "system";
+  });
+  usePageTheme(themeId, mode);
   const viewerRef = useRef(null);
   const layout = useDefaultLayout({ id: "review-layout", storage: localStorage, onlySaveAfterUserInteractions: true });
 
   const change = data.changes.find((c) => c.change === selected) ?? data.changes.at(-1);
+  const pickTheme = (id) => {
+    setThemeId(id);
+    store("guided-review:theme", id);
+  };
+  const pickMode = (next) => {
+    setMode(next);
+    store("guided-review:mode", next);
+  };
   const show = (next) => {
     const merged = { ...display, ...next };
     setDisplay(merged);
@@ -323,6 +544,9 @@ function App({ initial }) {
               );
             })}
           </ol>
+          <footer className="side-foot">
+            <ThemePicker value={themeId} onChange={pickTheme} mode={mode} onMode={pickMode} />
+          </footer>
         </aside>
       </Panel>
       <Separator className="resizer" />
@@ -349,6 +573,8 @@ function App({ initial }) {
             change={change}
             viewerRef={viewerRef}
             display={display}
+            themeId={themeId}
+            mode={mode}
             viewed={viewed}
             onToggleViewed={toggleViewed}
           />

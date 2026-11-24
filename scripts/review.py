@@ -183,7 +183,7 @@ class Review:
 
 def bundle():
     """The page's script, rebuilt when its sources are newer than the last build."""
-    sources = [ROOT / "app.jsx", ROOT / "package-lock.json"]
+    sources = [ROOT / "app.jsx", ROOT / "package-lock.json", *(ROOT / "themes").glob("*.js")]
     if BUNDLE.exists() and BUNDLE.stat().st_mtime >= max(s.stat().st_mtime for s in sources):
         return BUNDLE.read_text()
     esbuild = ROOT / "node_modules" / ".bin" / "esbuild"

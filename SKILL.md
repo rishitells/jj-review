@@ -21,6 +21,10 @@ stop it with Ctrl-C. `$GR` is this skill's directory.
   "Open in" opens the file in your editor, and a line number opens it at that line (a removed line opens the file at
   the top).
 - **Display:** Wrap lines and Expand all (every unchanged line shown), remembered with the single or split choice.
+- **Theme:** a dropdown at the foot of the sidebar picks the diffs' theme, a light and dark pair: Pierre (the
+  default) and its variants, warm ones (Gruvbox, Rosé Pine, Everforest, Kanagawa, Solarized, Horizon) and cool or
+  neutral ones. A switch on top picks the mode: System (follows the computer), Light or Dark. The page takes the
+  theme's background and keeps its own text. Both are remembered.
 
 The code comes from git through jj: each change against its first parent. Nothing on the page is written by hand.
 
@@ -86,7 +90,8 @@ Then `jj review`, `jj review @-` or `jj review 'trunk()..@'` from anywhere in th
 
 - `scripts/review.py` reads the changes with jj and git, serves the page, its data and the change stream.
 - `scripts/diff.py` reads a git diff into files and hunks, for the counts and file statuses.
-- `scripts/app.jsx` is the page: the change list, the tree, the diffs, and the live updates.
+- `scripts/app.jsx` is the page: the change list, the tree, the diffs, the theme picker, and the live updates.
+- `scripts/themes/themes.js` lists the themes the picker offers, each pair with the colours of its preview.
 - `scripts/page.html` holds the page's shell and its Fresh styles: Fixel (`font.css`, SIL Open Font License 1.1) for
   text, JetBrains Mono for code.
 - `tests/fuzz.mjs` is the fuzz test (below).

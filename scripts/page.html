@@ -12,10 +12,19 @@
 </style>
 <style>
 :root { --bg: #fff; --text: #171717; --text-2: #3b3b3b; --text-3: #737373; --line: #e8e8e8; --surface-2: #f5f7fa;
-  --green: #157e3c; --red: oklch(0.58 0.2 27); --plum: oklch(0.55 0.14 320); --bar: oklch(0.627 0.194 149.214);
+  --green: #157e3c; --red: oklch(0.58 0.2 27); --plum: oklch(0.55 0.14 320); --amber: oklch(0.56 0.12 70); --bar: oklch(0.627 0.194 149.214);
   --file-band: #f6f7f9; --font: "Fixel", system-ui, -apple-system, sans-serif; --mono: "JetBrains Mono", ui-monospace, Menlo, monospace; color-scheme: light; }
-@media (prefers-color-scheme: dark) { :root { --bg: #191b1f; --text: #fcfcfd; --text-2: #ccd2db; --text-3: #8b93a1; --line: #2c313a;
-  --surface-2: #252c37; --file-band: #20242b; --green: oklch(0.871 0.15 154.449); --red: oklch(0.7 0.17 27); --plum: oklch(0.72 0.13 320); color-scheme: dark; } }
+/* Dark follows the system unless the picker set a mode (data-mode light or dark). */
+@media (prefers-color-scheme: dark) { :root:not([data-mode="light"]) { --bg: #191b1f; --text: #fcfcfd; --text-2: #ccd2db; --text-3: #8b93a1; --line: #2c313a;
+  --surface-2: #252c37; --file-band: #20242b; --green: oklch(0.871 0.15 154.449); --red: oklch(0.7 0.17 27); --plum: oklch(0.72 0.13 320); --amber: oklch(0.8 0.12 80); color-scheme: dark; } }
+:root[data-mode="dark"] { --bg: #191b1f; --text: #fcfcfd; --text-2: #ccd2db; --text-3: #8b93a1; --line: #2c313a;
+  --surface-2: #252c37; --file-band: #20242b; --green: oklch(0.871 0.15 154.449); --red: oklch(0.7 0.17 27); --plum: oklch(0.72 0.13 320); --amber: oklch(0.8 0.12 80); color-scheme: dark; }
+/* A picked theme (data-family) gives the page its background; the page keeps its own ink, and its lines and surfaces
+   are that ink mixed into the background. Code text colours stay the theme's own, inside the diffs. */
+:root[data-family] { --bg: var(--fam-l-bg); --line: color-mix(in oklab, var(--text) 12%, var(--bg));
+  --surface-2: color-mix(in oklab, var(--text) 6%, var(--bg)); --file-band: color-mix(in oklab, var(--text) 3.5%, var(--bg)); }
+@media (prefers-color-scheme: dark) { :root[data-family]:not([data-mode="light"]) { --bg: var(--fam-d-bg); } }
+:root[data-family][data-mode="dark"] { --bg: var(--fam-d-bg); }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text-2); font: 450 14px/1.5 var(--font); }
 #root, .page { height: 100%; }
 .page { height: 100%; }
@@ -62,7 +71,12 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text-2
 .add { color: var(--green); } .del { color: var(--red); }
 .diffs { flex: 1; min-height: 0; overflow: auto; padding: 0 28px; --diffs-font-family: "JetBrains Mono"; --diffs-header-font-family: "JetBrains Mono"; --diffs-font-size: 12.5px; --diffs-line-height: 24px; font-weight: 350; }
 .diffs diffs-container { display: block; border: 1px solid var(--line); border-radius: 8px; overflow: clip; }
-.tree { --trees-bg-override: var(--bg); --trees-search-bg-override: var(--bg); --trees-input-bg-override: var(--bg); --trees-font-family-override: "JetBrains Mono", ui-monospace, monospace; --trees-font-weight-regular-override: 350; }
+.tree { --trees-bg-override: var(--bg); --trees-search-bg-override: var(--bg); --trees-input-bg-override: var(--bg); --trees-font-family-override: var(--font); --trees-font-weight-regular-override: 400;
+  /* The tree's own palette is a faint grey; it takes the page's ink, and status colours from the page's palette. */
+  --trees-fg-override: var(--text-2); --trees-fg-muted-override: var(--text-3); --trees-selected-fg-override: var(--text);
+  --trees-git-added-color-override: var(--green); --trees-git-untracked-color-override: var(--green);
+  --trees-git-modified-color-override: var(--amber); --trees-git-deleted-color-override: var(--red);
+  --trees-git-renamed-color-override: var(--plum); }
 .controls { display: flex; flex-wrap: wrap; gap: 8px; }
 .controls .layout { margin-top: 0; }
 .file-actions { display: inline-flex; align-items: center; gap: 10px; }
@@ -86,6 +100,43 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text-2
 .empty h1 { font-size: 22px; color: var(--text); margin: 0 0 8px; }
 .open { font: 500 12px/1.6 var(--font); color: var(--text-3); text-decoration: none; padding: 2px 8px; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--line); }
 .open:hover { color: var(--text); background: var(--surface-2); }
+/* The theme picker: a quiet row at the foot of the sidebar that opens a list upwards. */
+.side-foot { flex: none; position: relative; margin: 0 -4px; padding: 6px 0 10px; border-top: 1px solid var(--line); }
+.theme-trigger { display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px 8px; border: 0; border-radius: 6px; background: none;
+  font: inherit; font-size: 13px; color: var(--text); text-align: left; cursor: pointer; }
+.theme-trigger:hover, .theme-trigger[aria-expanded="true"] { background: var(--surface-2); }
+.theme-trigger:focus-visible { outline: 2px solid var(--bar); outline-offset: -2px; }
+.theme-trigger .theme-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.theme-kicker { font-size: 12px; color: var(--text-3); }
+.chevron { width: 14px; height: 14px; flex: none; fill: none; stroke: var(--text-3); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.pair { display: inline-flex; flex: none; gap: 3px; }
+.swatch { display: inline-flex; flex-direction: column; justify-content: center; gap: 2px; width: 22px; height: 16px; box-sizing: border-box;
+  padding: 0 4px; border-radius: 4px; box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--text) 14%, transparent); }
+.swatch i { display: block; height: 2px; border-radius: 1px; }
+.theme-pop { position: absolute; left: 0; right: 0; bottom: calc(100% - 2px); z-index: 20; padding: 0 0 4px;
+  animation: theme-pop 140ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+@keyframes theme-pop { from { opacity: 0; transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) { .theme-pop { animation: none; } }
+.theme-panel > ul { max-height: min(420px, 62vh); overflow: auto; margin: 0; padding: 4px; list-style: none; outline: none; }
+.theme-pop ul ul { margin: 0 0 4px; padding: 0; list-style: none; }
+.theme-group { margin: 0; padding: 8px 8px 4px; font-size: 11px; font-weight: 550; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-3); }
+.theme-pop [role="option"] { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 6px; font-size: 13px;
+  color: var(--text-2); cursor: pointer; }
+.theme-pop [role="option"][data-active] { background: var(--surface-2); color: var(--text); }
+.theme-pop [role="option"][aria-selected="true"] { color: var(--text); font-weight: 550; }
+.theme-pop .theme-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tick { width: 14px; height: 14px; flex: none; fill: none; stroke: var(--bar); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; visibility: hidden; }
+[aria-selected="true"] > .tick { visibility: visible; }
+.theme-panel { border-radius: 10px; background: var(--bg); overflow: hidden;
+  box-shadow: 0 0 0 1px var(--line), 0 14px 36px -10px rgb(0 0 0 / 0.28), 0 3px 8px -2px rgb(0 0 0 / 0.1); }
+.mode { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; margin: 6px 6px 2px; padding: 2px; border-radius: 7px; background: var(--surface-2); }
+.mode button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 4px 0; border: 0; border-radius: 5px;
+  background: none; font: inherit; font-size: 12px; color: var(--text-3); cursor: pointer; }
+.mode button:hover { color: var(--text); }
+.mode button[aria-pressed="true"] { background: var(--bg); color: var(--text); font-weight: 550;
+  box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgb(0 0 0 / 0.08); }
+.mode button:focus-visible { outline: 2px solid var(--bar); outline-offset: -1px; }
+.mode svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 </style>
 </head>
 <body>
