@@ -70,8 +70,16 @@ function Tree({ change, viewed, onOpen }) {
     initialExpansion: "open",
     flattenEmptyDirectories: true,
     search: true,
-    unsafeCSS:
-      'button { font-weight: inherit; } [data-item-section="decoration"] { color: light-dark(#157e3c, #6fdc8c); font-weight: 600; }',
+    unsafeCSS: [
+      "button { font-weight: inherit; }",
+      '[data-item-section="decoration"] { color: light-dark(#157e3c, #6fdc8c); font-weight: 600; }',
+      "[data-file-tree-search-container] { padding: 2px 8px 10px; }",
+      "[data-file-tree-search-input] { height: 30px; box-sizing: border-box; padding: 0 10px; border: 1px solid var(--line);",
+      "  border-radius: 6px; background: var(--bg); color: var(--text); font: 450 13px/1 var(--font); box-shadow: none; }",
+      "[data-file-tree-search-input]::placeholder { color: var(--text-3); }",
+      "[data-file-tree-search-input]:is(:focus, :focus-visible) { outline: none !important; border-color: var(--bar);",
+      "  box-shadow: 0 0 0 1px var(--bar) !important; }",
+    ].join("\n"),
     renderRowDecoration: ({ item }) =>
       item.kind === "file" && viewedNow.current.has(item.path) ? { text: "✓", title: "Viewed" } : null,
     onSelectionChange: (paths) => {

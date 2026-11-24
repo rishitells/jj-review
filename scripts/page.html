@@ -46,7 +46,7 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text-2
 .add { color: var(--green); } .del { color: var(--red); }
 .diffs { flex: 1; min-height: 0; overflow: auto; padding: 0 28px; --diffs-font-family: "JetBrains Mono"; --diffs-header-font-family: "JetBrains Mono"; --diffs-font-size: 12.5px; --diffs-line-height: 24px; font-weight: 350; }
 .diffs diffs-container { display: block; border: 1px solid var(--line); border-radius: 8px; overflow: clip; }
-.tree { --trees-font-family-override: "JetBrains Mono", ui-monospace, monospace; --trees-font-weight-regular-override: 350; }
+.tree { --trees-bg-override: var(--bg); --trees-search-bg-override: var(--bg); --trees-input-bg-override: var(--bg); --trees-font-family-override: "JetBrains Mono", ui-monospace, monospace; --trees-font-weight-regular-override: 350; }
 .controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 .controls .layout { margin-top: 0; }
 .file-actions { display: inline-flex; align-items: center; gap: 10px; }
