@@ -3,8 +3,8 @@
 
     review.py [-R repo] [revset] [--no-open]
 
-With no revset it shows the changes from the working copy down to the nearest ancestor that has a bookmark (or
-trunk). Changes without a diff (an empty working copy) are left out. The page lists the changes; picking one shows its
+With no revset it shows the stack the working copy is in: from the nearest ancestor that has a bookmark (or trunk)
+up through the working copy and the changes on top of it. Changes without a diff (an empty working copy) are left out. The page lists the changes; picking one shows its
 description, its files as a tree and every file's diff (@pierre/diffs, single or split). Each file opens in your
 editor: Zed unless GUIDED_REVIEW_EDITOR says otherwise (for example 'vscode://file/{path}').
 
@@ -27,20 +27,53 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from diff import file_at, read_diff
+from diff import parse_diff
 
 ROOT = Path(__file__).parent
 BUNDLE = ROOT / "bundle.js"
-DEFAULT_REVSET = "heads(::@- & (trunk() | bookmarks()))..@"
+# From the nearest bookmarked ancestor (or trunk) up through the working copy and everything stacked on it, so
+# editing a change in the middle of a stack keeps the changes above it on the page.
+DEFAULT_REVSET = "heads(::@- & (trunk() | bookmarks()))..descendants(@)"
 
 
-def jj(repo, *args, snapshot=True):
+def jj_bytes(repo, *args, snapshot=True):
     """Runs jj. Without snapshot it never touches the working copy, so it can't race the user's own commands."""
     where = ["-R", repo] if repo else []
     quiet = [] if snapshot else ["--ignore-working-copy"]
-    return subprocess.run(
-        ["jj", *where, *quiet, "--no-pager", "--color=never", *args], capture_output=True, text=True, check=True
-    ).stdout
+    try:
+        return subprocess.run(["jj", *where, *quiet, "--no-pager", "--color=never", *args], capture_output=True, check=True).stdout
+    except subprocess.CalledProcessError as err:
+        err.stderr = err.stderr.decode("utf-8", errors="replace") if isinstance(err.stderr, bytes) else err.stderr
+        raise
+
+
+def jj(repo, *args, snapshot=True):
+    # Leniently decoded: a file that isn't UTF-8 mustn't stop the page.
+    return jj_bytes(repo, *args, snapshot=snapshot).decode("utf-8", errors="replace")
+
+
+def fileset(path):
+    """A fileset naming exactly this path, whatever characters it holds."""
+    return 'root-file:"' + path.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def file_bytes(repo, rev, path):
+    """A file as jj shows it at a revision: a conflicted file comes with its conflict markers."""
+    if rev in ("", ROOT_COMMIT):
+        return b""
+    try:
+        return jj_bytes(repo, "file", "show", "-r", rev, fileset(path), snapshot=False)
+    except subprocess.CalledProcessError:
+        return b""
+
+
+def is_binary(data):
+    """Git's rule: a zero byte in the first 8000 bytes."""
+    return b"\0" in data[:8000]
+
+
+def as_text(data):
+    return "\n".join(line.removesuffix("\r") for line in data.decode("utf-8", errors="replace").split("\n"))
 
 
 def changes_in(repo, revset, snapshot=True):
@@ -61,21 +94,33 @@ def changes_in(repo, revset, snapshot=True):
     return changes
 
 
-def read_change(gitdir, c):
+# jj's root commit has no files.
+ROOT_COMMIT = "0" * 40
+
+
+def read_change(repo, c):
+    """A change as jj sees it: its diff against its parent (conflicts shown with their markers, renames as renames)
+    and both versions of every text file."""
     lines = c["description"].strip().split("\n")
     files = []
-    for f in read_diff(gitdir, c["parent"], c["commit"]):
+    for f in parse_diff(jj(repo, "diff", "--git", "-r", c["commit"], snapshot=False)):
         kinds = [l["kind"] for h in f["hunks"] for l in h["lines"]]
-        old = "" if f["status"] == "added" else "\n".join(file_at(gitdir, c["parent"], f["path"]))
-        new = "" if f["status"] == "deleted" else "\n".join(file_at(gitdir, c["commit"], f["path"]))
+        old_bytes = b"" if f["status"] == "added" else file_bytes(repo, c["parent"], f.get("old_path", f["path"]))
+        new_bytes = b"" if f["status"] == "deleted" else file_bytes(repo, c["commit"], f["path"])
+        # jj says "Binary files differ" only when the contents changed; a binary file whose mode alone changed is
+        # caught by its bytes.
+        f["binary"] = f["binary"] or is_binary(old_bytes) or is_binary(new_bytes)
+        old = "" if f["binary"] else as_text(old_bytes)
+        new = "" if f["binary"] else as_text(new_bytes)
         files.append({
             "path": f["path"],
+            "oldPath": f.get("old_path"),
             "status": f["status"],
             "binary": f["binary"],
             "old": old,
             "new": new,
             # Names this exact diff: a file stays viewed until its diff changes.
-            "sig": hashlib.sha1(f"{old}\0{new}".encode("utf-8", "replace")).hexdigest()[:16],
+            "sig": hashlib.sha1(f"{f.get('old_path')}\0{old}\0{new}\0{f['binary']}".encode("utf-8", "replace")).hexdigest()[:16],
             "adds": kinds.count("add"),
             "dels": kinds.count("del"),
         })
@@ -110,7 +155,6 @@ class Review:
     def __init__(self, repo, revset, snapshot):
         self.repo, self.revset, self.snapshot = repo, revset, snapshot
         self.workspace = jj(repo, "workspace", "root", snapshot=snapshot).strip()
-        self.gitdir = jj(repo, "git", "root", snapshot=snapshot).strip()
         self.by_commit = {}
         editor = os.environ.get("GUIDED_REVIEW_EDITOR") or "zed://file/{path}"
         self.snapshots_on_save = snapshots_on_save(repo)
@@ -127,7 +171,7 @@ class Review:
         changes = []
         for c in changes_in(self.repo, self.revset, snapshot=self.snapshot):
             if c["commit"] not in self.by_commit:
-                self.by_commit[c["commit"]] = read_change(self.gitdir, c)
+                self.by_commit[c["commit"]] = read_change(self.repo, c)
             changes.append(self.by_commit[c["commit"]])
         live = {c["commit"] for c in changes}
         self.by_commit = {k: v for k, v in self.by_commit.items() if k in live}
@@ -193,11 +237,14 @@ def serve(review, no_open):
             pass
 
         def send(self, status, kind, body):
-            self.send_response(status)
-            self.send_header("Content-Type", kind)
-            self.send_header("Cache-Control", "no-store")
-            self.end_headers()
-            self.wfile.write(body)
+            try:
+                self.send_response(status)
+                self.send_header("Content-Type", kind)
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(body)
+            except (BrokenPipeError, ConnectionResetError):
+                pass  # the page dropped this read for a newer one
 
         def do_GET(self):
             path = urlsplit(self.path).path
@@ -207,7 +254,9 @@ def serve(review, no_open):
             elif path == "/data":
                 try:
                     with lock:
-                        body = json.dumps({**review.data(), "op": state["op"]}).encode()
+                        # The operation first, then the changes: the data is never older than the id it carries.
+                        op = review.operation()
+                        body = json.dumps({**review.data(), "op": op}).encode()
                     self.send(200, "application/json", body)
                 except subprocess.CalledProcessError as err:
                     self.send(503, "text/plain", f"jj failed: {err.stderr.strip()}".encode())

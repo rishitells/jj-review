@@ -8,7 +8,7 @@ import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panel
 // The page asks the review server for its data, and hears from it when jj records an operation.
 let SETTINGS = null;
 
-const GIT_STATUS = { added: "added", deleted: "deleted", modified: "modified" };
+const GIT_STATUS = { added: "added", deleted: "deleted", modified: "modified", renamed: "renamed", copied: "added" };
 
 // Browser storage can be missing or refuse writes (private windows, blocked site data): the page works without it.
 const stored = (key, fallback) => {
@@ -49,7 +49,7 @@ const itemOf = (file, collapsed, version) => ({
   id: file.path,
   type: "diff",
   sig: file.sig,
-  fileDiff: parseDiffFromFile({ name: file.path, contents: file.old }, { name: file.path, contents: file.new }),
+  fileDiff: parseDiffFromFile({ name: file.oldPath ?? file.path, contents: file.old }, { name: file.path, contents: file.new }),
   collapsed,
   version,
 });
@@ -276,7 +276,7 @@ function App({ initial }) {
   return (
     <Group className="page" orientation="horizontal" id="review-layout" {...layout}>
       <Panel id="side" defaultSize="320px" minSize="220px" maxSize="60%" className="side-panel">
-        <aside className="side">
+        <aside className="side" data-op={data.op}>
           <p className="eyebrow">
             {data.repo} · {data.changes.length} {data.changes.length === 1 ? "change" : "changes"}
             <span

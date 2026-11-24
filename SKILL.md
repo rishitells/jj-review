@@ -89,3 +89,24 @@ Then `jj review`, `jj review @-` or `jj review 'trunk()..@'` from anywhere in th
 - `scripts/app.jsx` is the page: the change list, the tree, the diffs, and the live updates.
 - `scripts/page.html` holds the page's shell and its Fresh styles: Fixel (`font.css`, SIL Open Font License 1.1) for
   text, JetBrains Mono for code.
+- `tests/fuzz.mjs` is the fuzz test (below).
+
+## Testing
+
+`tests/fuzz.mjs` builds a scratch jj repository, starts `review.py` on it and opens the page in headless Chromium
+(Playwright, a dev dependency: `npm ci` installs it; `npx playwright install chromium` once if no browser is cached).
+It then applies random jj operations: new changes, inserts before and after, rewording, file edits inside any change,
+squash, abandon, reordering (with the conflicts that brings), moving the base bookmark, empty changes and undo. Files
+get awkward contents (unicode, tabs, CRLF, very long lines, no final newline, empty, binary, `</script>`) and awkward
+paths (spaces, ` b/` inside a path, quotes, backslashes, tabs). After every operation it checks the server's data
+against jj and git (changes, order, files, statuses, counts, contents), that the open page follows without a reload,
+and that Viewed holds until a file's diff changes.
+
+```bash
+cd $GR && node tests/fuzz.mjs --cases 300            # a random seed, printed first
+node tests/fuzz.mjs --seed 42 --cases 300 --keep     # replay a run exactly; keep the repository
+```
+
+`PYTHON=…` picks the interpreter for `review.py`. A failure names its seed and case; `--keep-going` reports every
+failing case instead of stopping at the first. A case takes about two seconds, mostly waiting for the live page
+to catch up, so 150 cases take about five minutes. One run at a time: it drives a browser and many jj commands.

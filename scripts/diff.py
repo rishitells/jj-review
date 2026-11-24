@@ -1,32 +1,62 @@
-"""Reads a git diff between two commits into files, hunks and lines.
+"""Parses a git-format diff (jj diff --git) into files, hunks and lines.
 
 Each line has a kind (ctx, add, del), its old and new numbers, and its text. Each file also says how it changed
 (added, deleted, modified), whether it's binary, and whether its mode changed, so a file that changed without any text
 lines is still accounted for.
 """
 import re
-import subprocess
 
 HUNK = re.compile(r"^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 
 
-def git(repo, *args):
-    """Runs git against a git directory: a jj repository's backing store works, colocated or not."""
-    # Leniently decoded: a binary file, or text that isn't UTF-8, mustn't stop the build.
-    out = subprocess.run(["git", f"--git-dir={repo}", *args], capture_output=True, check=True).stdout
+ESCAPES = {"a": "\a", "b": "\b", "t": "\t", "n": "\n", "v": "\v", "f": "\f", "r": "\r", '"': '"', "\\": "\\"}
+
+
+def unquote(quoted):
+    """A path git wrote as a C string ("a/x\\ty"): its bytes, decoded."""
+    out, i, body = bytearray(), 0, quoted[1:-1]
+    while i < len(body):
+        c = body[i]
+        if c == "\\" and body[i + 1 : i + 4].isdigit() and len(body[i + 1 : i + 4]) == 3:
+            out.append(int(body[i + 1 : i + 4], 8))
+            i += 4
+        elif c == "\\" and i + 1 < len(body):
+            out.extend(ESCAPES.get(body[i + 1], body[i + 1]).encode())
+            i += 2
+        else:
+            out.extend(c.encode())
+            i += 1
     return out.decode("utf-8", errors="replace")
 
 
-def read_diff(repo, base, head, context=3):
-    out = git(repo, "diff", f"-U{context}", "--no-color", "--no-renames", base, head)
+def header_path(line):
+    """The path in a "diff --git a/<path> b/<path>" line. Without renames both sides are the same path, so it's half of
+    what follows: no split on " b/" can go wrong, whatever the path holds. Paths git had to quote come quoted."""
+    rest = line[len("diff --git "):]
+    if rest.startswith('"'):
+        end = 1
+        while rest[end] != '"':
+            end += 2 if rest[end] == "\\" else 1
+        return unquote(rest[: end + 1])[2:]
+    return rest[2 : 2 + (len(rest) - 5) // 2]
+
+
+def parse_diff(out):
+    """A git-format diff (git's or jj's) as files. A rename or copy names both paths: `path` is the new one and
+    `old_path` the one it came from."""
     files, cur, hunk, old, new = [], None, None, 0, 0
     for raw in out.split("\n"):
         if raw.startswith("diff --git "):
-            cur = {"path": raw.split(" b/", 1)[1], "hunks": [], "binary": False, "status": "modified", "mode": None}
+            cur = {"path": header_path(raw), "hunks": [], "binary": False, "status": "modified", "mode": None}
             files.append(cur)
             hunk = None
         elif cur is None:
             continue
+        elif hunk is None and raw.startswith(("rename from ", "copy from ")):
+            cur["old_path"] = raw.split(" from ", 1)[1]
+            cur["status"] = "renamed" if raw.startswith("rename") else "copied"
+        elif hunk is None and raw.startswith(("rename to ", "copy to ")):
+            cur["path"] = raw.split(" to ", 1)[1]
         elif hunk is None and raw.startswith("new file mode"):
             cur["status"] = "added"
         elif hunk is None and raw.startswith("deleted file mode"):
@@ -41,7 +71,9 @@ def read_diff(repo, base, head, context=3):
             old, new = int(m[1]), int(m[2])
             hunk = {"lines": []}
             cur["hunks"].append(hunk)
-        elif hunk is not None and raw[:1] in (" ", "+", "-") and not raw.startswith(("+++", "---")):
+        # Inside a hunk every line counts, even one that starts "+++" or "---" (a conflict marker, a "--flag"): the
+        # file headers come before the first hunk, and "diff --git" ends the hunk.
+        elif hunk is not None and raw[:1] in (" ", "+", "-"):
             kind = {" ": "ctx", "+": "add", "-": "del"}[raw[0]]
             # A Windows line ending isn't part of the line, as on GitHub.
             text = raw[1:].removesuffix("\r")
@@ -51,36 +83,3 @@ def read_diff(repo, base, head, context=3):
             if kind != "del":
                 new += 1
     return files
-
-
-def numstat(repo, base, head):
-    """Added and removed line counts per file, as git counts them; None for a binary file."""
-    counts = {}
-    for row in git(repo, "diff", "--numstat", "--no-renames", base, head).splitlines():
-        adds, dels, path = row.split("\t", 2)
-        counts[path] = None if adds == "-" else (int(adds), int(dels))
-    return counts
-
-
-def file_at(repo, rev, path):
-    try:
-        return [line.removesuffix("\r") for line in git(repo, "show", f"{rev}:{path}").split("\n")]
-    except subprocess.CalledProcessError:
-        return []
-
-
-if __name__ == "__main__":
-    import sys
-
-    repo, base, head = sys.argv[1:4]
-    skip = re.compile(sys.argv[4]) if len(sys.argv) > 4 else None
-    for f in read_diff(repo, base, head):
-        if skip and skip.search(f["path"]):
-            continue
-        print(f"=== {f['path']}")
-        for h in f["hunks"]:
-            print("  @@")
-            for l in h["lines"]:
-                mark = {"ctx": " ", "add": "+", "del": "-"}[l["kind"]]
-                num = l["new"] if l["new"] is not None else f"({l['old']})"
-                print(f"{mark}{str(num):>6} {l['text']}")
