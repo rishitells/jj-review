@@ -5,7 +5,8 @@ import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels";
 
-const DATA = JSON.parse(document.getElementById("review-data").textContent);
+// The page asks the review server for its data, and hears from it when jj records an operation.
+let SETTINGS = null;
 
 const GIT_STATUS = { added: "added", deleted: "deleted", modified: "modified" };
 
@@ -24,12 +25,19 @@ const store = (key, value) => {
   } catch {}
 };
 
-// Viewed files are kept per commit, so a change that moves on starts unviewed again.
-const viewedKey = (change) => `guided-review:viewed:${change.commit}`;
-const loadViewed = (change) => new Set(stored(viewedKey(change), []));
+// Viewed marks are kept per change id as { path: diff signature }: a file stays viewed until its diff changes, even
+// when the change is rewritten around it.
+const marksCache = new Map();
+const marksKey = (changeId) => `guided-review:viewed:${SETTINGS.repo}:${changeId}`;
+const marksOf = (changeId) => {
+  if (!marksCache.has(changeId)) marksCache.set(changeId, stored(marksKey(changeId), {}));
+  return marksCache.get(changeId);
+};
+const viewedIn = (change) => new Set(change.files.filter((f) => marksOf(change.change)[f.path] === f.sig).map((f) => f.path));
 
 const editorUrl = (path, line) =>
-  DATA.editor.replace("{path}", encodeURI(`${DATA.workspace}/${path}`).replace(/^\//, "")) + (line ? `:${line}` : "");
+  SETTINGS.editor.replace("{path}", encodeURI(`${SETTINGS.workspace}/${path}`).replace(/^\//, "")) +
+  (line ? `:${line}` : "");
 
 const openInEditor = (path, line) => {
   const link = document.createElement("a");
@@ -37,16 +45,30 @@ const openInEditor = (path, line) => {
   link.click();
 };
 
-function itemsOf(change, viewed) {
-  return change.files
+const itemOf = (file, collapsed, version) => ({
+  id: file.path,
+  type: "diff",
+  sig: file.sig,
+  fileDiff: parseDiffFromFile({ name: file.path, contents: file.old }, { name: file.path, contents: file.new }),
+  collapsed,
+  version,
+});
+
+// The next item list: unchanged files keep their item (and their parsed diff), changed ones are parsed again.
+// Returns the current list itself when nothing changed, so an update with the same data renders nothing.
+function reconcile(current, change, viewed) {
+  const byId = new Map(current.map((item) => [item.id, item]));
+  const next = change.files
     .filter((f) => !f.binary)
-    .map((f) => ({
-      id: f.path,
-      type: "diff",
-      fileDiff: parseDiffFromFile({ name: f.path, contents: f.old }, { name: f.path, contents: f.new }),
-      collapsed: viewed.has(f.path),
-      version: 0,
-    }));
+    .map((f) => {
+      const item = byId.get(f.path);
+      const collapsed = viewed.has(f.path);
+      if (item && item.sig === f.sig) {
+        return item.collapsed === collapsed ? item : { ...item, collapsed, version: item.version + 1 };
+      }
+      return itemOf(f, collapsed, item ? item.version + 1 : 0);
+    });
+  return next.length === current.length && next.every((item, i) => item === current[i]) ? current : next;
 }
 
 function ChangeId({ change }) {
@@ -58,40 +80,52 @@ function ChangeId({ change }) {
   );
 }
 
+const TREE_CSS = [
+  "button { font-weight: inherit; }",
+  '[data-item-section="decoration"] { color: light-dark(#157e3c, #6fdc8c); font-weight: 600; }',
+  "[data-file-tree-search-container] { padding: 2px 8px 10px; }",
+  "[data-file-tree-search-input] { height: 30px; box-sizing: border-box; padding: 0 10px; border: 1px solid var(--line);",
+  "  border-radius: 6px; background: var(--bg); color: var(--text); font: 450 13px/1 var(--font); box-shadow: none; }",
+  "[data-file-tree-search-input]::placeholder { color: var(--text-3); }",
+  "[data-file-tree-search-input]:is(:focus, :focus-visible) { outline: none !important; border-color: var(--bar);",
+  "  box-shadow: 0 0 0 1px var(--bar) !important; }",
+].join("\n");
+
 function Tree({ change, viewed, onOpen }) {
-  // The tree reads the viewed set when it draws a row. Setting identical git status doesn't redraw, so it's cleared
-  // and set again.
+  // The tree reads the viewed set when it draws a row.
   const viewedNow = useRef(viewed);
   viewedNow.current = viewed;
-  const gitStatus = change.files.map((f) => ({ path: f.path, status: GIT_STATUS[f.status] ?? "modified" }));
+  const filesNow = useRef(change.files);
+  filesNow.current = change.files;
+  const paths = change.files.map((f) => f.path).join("\n");
+  const statuses = change.files.map((f) => GIT_STATUS[f.status] ?? "modified").join("\n");
+  const viewedPaths = [...viewed].sort().join("\n");
   const { model } = useFileTree({
     paths: change.files.map((f) => f.path),
-    gitStatus,
+    gitStatus: change.files.map((f) => ({ path: f.path, status: GIT_STATUS[f.status] ?? "modified" })),
     initialExpansion: "open",
     flattenEmptyDirectories: true,
     search: true,
-    unsafeCSS: [
-      "button { font-weight: inherit; }",
-      '[data-item-section="decoration"] { color: light-dark(#157e3c, #6fdc8c); font-weight: 600; }',
-      "[data-file-tree-search-container] { padding: 2px 8px 10px; }",
-      "[data-file-tree-search-input] { height: 30px; box-sizing: border-box; padding: 0 10px; border: 1px solid var(--line);",
-      "  border-radius: 6px; background: var(--bg); color: var(--text); font: 450 13px/1 var(--font); box-shadow: none; }",
-      "[data-file-tree-search-input]::placeholder { color: var(--text-3); }",
-      "[data-file-tree-search-input]:is(:focus, :focus-visible) { outline: none !important; border-color: var(--bar);",
-      "  box-shadow: 0 0 0 1px var(--bar) !important; }",
-    ].join("\n"),
+    unsafeCSS: TREE_CSS,
     renderRowDecoration: ({ item }) =>
       item.kind === "file" && viewedNow.current.has(item.path) ? { text: "✓", title: "Viewed" } : null,
-    onSelectionChange: (paths) => {
-      const file = paths.find((p) => change.files.some((f) => f.path === p));
+    onSelectionChange: (selected) => {
+      const file = selected.find((p) => filesNow.current.some((f) => f.path === p));
       if (file) onOpen(file);
     },
   });
+  const shownPaths = useRef(paths);
   useEffect(() => {
+    const list = paths.split("\n");
+    if (shownPaths.current !== paths) {
+      shownPaths.current = paths;
+      model.resetPaths(list);
+    }
+    // Setting identical git status doesn't redraw rows, so it's cleared and set again (viewed ticks follow).
+    const kinds = statuses.split("\n");
     model.setGitStatus([]);
-    model.setGitStatus(gitStatus);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- redraw only when the viewed set changes
-  }, [viewed]);
+    model.setGitStatus(list.map((path, i) => ({ path, status: kinds[i] })));
+  }, [model, paths, statuses, viewedPaths]);
   return <FileTree model={model} className="tree" />;
 }
 
@@ -124,18 +158,10 @@ function optionsFor({ diffStyle, wrap, expandAll }) {
 }
 
 function Diffs({ change, viewerRef, display, viewed, onToggleViewed }) {
-  const [items, setItems] = useState(() => itemsOf(change, viewed));
+  const [items, setItems] = useState(() => reconcile([], change, viewed));
   useEffect(() => {
-    setItems((current) =>
-      current.some((item) => item.collapsed !== viewed.has(item.id))
-        ? current.map((item) =>
-            item.collapsed === viewed.has(item.id)
-              ? item
-              : { ...item, collapsed: viewed.has(item.id), version: (item.version ?? 0) + 1 }
-          )
-        : current
-    );
-  }, [viewed]);
+    setItems((current) => reconcile(current, change, viewed));
+  }, [change, viewed]);
   return (
     <CodeView
       ref={viewerRef}
@@ -158,8 +184,8 @@ function Diffs({ change, viewerRef, display, viewed, onToggleViewed }) {
             </span>
             Viewed
           </button>
-          <a className="open" href={editorUrl(item.id)} title={`Open ${item.id} in ${DATA.editorName}`}>
-            Open in {DATA.editorName}
+          <a className="open" href={editorUrl(item.id)} title={`Open ${item.id} in ${SETTINGS.editorName}`}>
+            Open in {SETTINGS.editorName}
           </a>
         </span>
       )}
@@ -175,53 +201,92 @@ function Toggle({ label, pressed, onChange }) {
   );
 }
 
-function App() {
-  const [index, setIndex] = useState(DATA.changes.length - 1);
-  const [viewedByCommit, setViewedByCommit] = useState(() => {
-    const first = DATA.changes[DATA.changes.length - 1];
-    return { [first.commit]: loadViewed(first) };
-  });
+// Follows the server's change stream, re-reading the data when jj records an operation.
+function useLiveData(initial) {
+  const [data, setData] = useState(initial);
+  const [status, setStatus] = useState("live");
+  useEffect(() => {
+    let seen = initial.op;
+    let abort = null;
+    const events = new EventSource("/events");
+    events.addEventListener("change", (event) => {
+      if (event.data === seen) return;
+      abort?.abort();
+      abort = new AbortController();
+      fetch("/data", { signal: abort.signal })
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.statusText))))
+        .then((next) => {
+          seen = next.op;
+          SETTINGS = next;
+          setData(next);
+        })
+        .catch(() => {});
+    });
+    events.onopen = () => setStatus("live");
+    events.onerror = () => setStatus("reconnecting");
+    return () => {
+      abort?.abort();
+      events.close();
+    };
+  }, [initial]);
+  return [data, status];
+}
+
+function App({ initial }) {
+  const [data, status] = useLiveData(initial);
+  const [selected, setSelected] = useState(initial.changes.at(-1)?.change);
+  const [, setMarksTick] = useState(0);
   const [display, setDisplay] = useState(() =>
     stored("guided-review:display", { diffStyle: "unified", wrap: false, expandAll: false })
   );
-  const change = DATA.changes[index];
-  const viewed = viewedByCommit[change.commit];
   const viewerRef = useRef(null);
   const layout = useDefaultLayout({ id: "review-layout", storage: localStorage, onlySaveAfterUserInteractions: true });
 
-  const select = (i) => {
-    const next = DATA.changes[i];
-    setViewedByCommit((all) => (all[next.commit] ? all : { ...all, [next.commit]: loadViewed(next) }));
-    setIndex(i);
-  };
+  const change = data.changes.find((c) => c.change === selected) ?? data.changes.at(-1);
   const show = (next) => {
     const merged = { ...display, ...next };
     setDisplay(merged);
     store("guided-review:display", merged);
   };
+
+  if (!change) {
+    return (
+      <main className="empty">
+        <p className="eyebrow">{data.repo}</p>
+        <h1>No changes with a diff in {data.revset}</h1>
+        <p>The page updates when there are some.</p>
+      </main>
+    );
+  }
+
+  const viewed = viewedIn(change);
   const toggleViewed = (path) => {
-    const next = new Set(viewed);
-    if (next.has(path)) next.delete(path);
-    else next.add(path);
-    store(viewedKey(change), [...next]);
-    setViewedByCommit((all) => ({ ...all, [change.commit]: next }));
+    const file = change.files.find((f) => f.path === path);
+    const marks = { ...marksOf(change.change) };
+    if (viewed.has(path)) delete marks[path];
+    else marks[path] = file.sig;
+    marksCache.set(change.change, marks);
+    store(marksKey(change.change), marks);
+    setMarksTick((n) => n + 1);
   };
   const open = (path) => viewerRef.current?.scrollTo({ type: "item", id: path, align: "start" });
   const adds = change.files.reduce((n, f) => n + f.adds, 0);
   const dels = change.files.reduce((n, f) => n + f.dels, 0);
-  const viewedCount = change.files.filter((f) => viewed.has(f.path)).length;
 
   return (
     <Group className="page" orientation="horizontal" id="review-layout" {...layout}>
       <Panel id="side" defaultSize="320px" minSize="220px" maxSize="60%" className="side-panel">
         <aside className="side">
           <p className="eyebrow">
-            {DATA.repo} · {DATA.changes.length} {DATA.changes.length === 1 ? "change" : "changes"}
+            {data.repo} · {data.changes.length} {data.changes.length === 1 ? "change" : "changes"}
+            <span className={`live ${status}`} title={status === "live" ? "Follows jj as it changes" : "Reconnecting"}>
+              {status === "live" ? "Live" : "Reconnecting"}
+            </span>
           </p>
           <ol className="changes">
-            {DATA.changes.map((c, i) => (
+            {data.changes.map((c) => (
               <li key={c.change}>
-                <button type="button" aria-current={i === index} onClick={() => select(i)}>
+                <button type="button" aria-current={c.change === change.change} onClick={() => setSelected(c.change)}>
                   <ChangeId change={c} />
                   <span className="subject">{c.subject}</span>
                 </button>
@@ -230,7 +295,7 @@ function App() {
           </ol>
           <Tree key={change.change} change={change} viewed={viewed} onOpen={open} />
           <p className="viewed-count">
-            {viewedCount} of {change.files.length} files viewed
+            {viewed.size} of {change.files.length} files viewed
           </p>
         </aside>
       </Panel>
@@ -273,4 +338,12 @@ function App() {
   );
 }
 
-createRoot(document.getElementById("root")).render(<App />);
+fetch("/data")
+  .then((r) => (r.ok ? r.json() : r.text().then((t) => Promise.reject(new Error(t)))))
+  .then((data) => {
+    SETTINGS = data;
+    createRoot(document.getElementById("root")).render(<App initial={data} />);
+  })
+  .catch((err) => {
+    document.getElementById("root").textContent = `The review server didn't answer: ${err.message}`;
+  });

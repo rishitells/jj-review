@@ -61,13 +61,18 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text-2
 .viewed[aria-pressed="true"] svg { stroke: var(--bg); }
 .viewed:focus-visible { outline: 2px solid var(--bar); outline-offset: 1px; }
 .viewed-count { margin: 0; padding: 10px 4px 14px; border-top: 1px solid var(--line); font-size: 12px; color: var(--text-3); }
+.live { margin-left: 8px; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 500; color: var(--green);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--green) 35%, transparent); }
+.live::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 5px; border-radius: 50%; background: currentColor; vertical-align: 1px; }
+.live.reconnecting { color: var(--text-3); box-shadow: inset 0 0 0 1px var(--line); }
+.empty { padding: 48px 28px; }
+.empty h1 { font-size: 22px; color: var(--text); margin: 0 0 8px; }
 .open { font: 500 12px/1.6 var(--font); color: var(--text-3); text-decoration: none; padding: 2px 8px; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--line); }
 .open:hover { color: var(--text); background: var(--surface-2); }
 </style>
 </head>
 <body>
 <div id="root"></div>
-<script type="application/json" id="review-data">{{DATA}}</script>
 <script>{{BUNDLE}}</script>
 </body>
 </html>
