@@ -182,8 +182,17 @@ figure.codenotes { margin: 8px 0 0; }
 .overview .n { font: 500 12px/1.9 var(--font-mono); color: var(--text-3); }
 .overview .c { font: 450 12px/1.9 var(--font-mono); white-space: nowrap; }
 .overview .add { color: var(--fx-green); } .overview .del { color: var(--fx-red); }
+/* A file: its path stays at the top while its diff scrolls by, like a pull request's files. */
+.chapter.file { margin-top: 28px; padding-top: 0; border-top: 0; }
+.chapter.file .step-head { top: env(safe-area-inset-top, 0px); }
+.step-head .fstat { font: 450 12px/1.6 var(--font-mono); white-space: nowrap; }
+.step-head .add, .toc .add { color: var(--fx-green); } .step-head .del, .toc .del { color: var(--fx-red); }
+.step-head .read { margin-left: auto; font-size: 13px; color: var(--text-3); white-space: nowrap; }
+.file-note { font-size: 14px; color: var(--text-3); }
+.change .summary p { font-size: 16px; line-height: 28px; }
 .toc li.part { margin-top: 14px; padding: 6px 0; font: 500 11px/1.4 var(--font-body); letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-3); border-bottom: 1px solid var(--line); }
-.toc li.part a { display: block; padding: 0; border: 0; color: inherit; }
+.toc li.part a { display: grid; grid-template-columns: 1.4rem minmax(0, 1fr); padding: 0; border: 0; color: inherit; }
+.toc li.part .t { text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--text-2); }
 .rest-group { margin-top: 28px; }
 h3 { font-size: 17px; line-height: 24px; font-weight: 600; color: var(--text); margin: 0 0 8px; }
 h3 .count { font-weight: 450; font-size: 14px; color: var(--text-3); margin-left: 10px; }
@@ -218,19 +227,18 @@ ul.bare .count { color: var(--text-3); white-space: nowrap; }
 
 <div class="page" id="page">
   <button type="button" class="toc-open" id="toc-open" aria-controls="toc" aria-label="Show the contents; click to keep them open"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M3 4.5h10M3 8h10M3 11.5h6"/></svg><span id="rail-count"></span></button>
-  <nav class="toc" id="toc" aria-label="Chapters">
-    <div class="toc-head"><p class="eyebrow">Tour</p><button type="button" class="toc-toggle" id="toc-toggle" aria-label="Collapse the contents" title="Collapse"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 4 5.5 8l4 4"/><path d="M13 3v10"/></svg></button></div>
+  <nav class="toc" id="toc" aria-label="Changes and files">
+    <div class="toc-head"><p class="eyebrow">Changes</p><button type="button" class="toc-toggle" id="toc-toggle" aria-label="Collapse the contents" title="Collapse"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 4 5.5 8l4 4"/><path d="M13 3v10"/></svg></button></div>
     <ol>{{TOC}}</ol>
-    <div class="progress"><span id="read-count">0</span> of <span id="read-total">0</span> chapters read<div class="bar"><i id="read-bar"></i></div></div>
+    <div class="progress"><span id="read-count">0</span> of <span id="read-total">0</span> files viewed<div class="bar"><i id="read-bar"></i></div></div>
   </nav>
 
   <main>
     <header>
       <p class="eyebrow">{{EYEBROW}}</p>
       <h1>{{HEADING}}</h1>
-      <div class="summary">{{SUMMARY}}</div>
       <p class="stats"><span><b>{{FILES}}</b> files</span><span class="add"><b>+{{ADDS}}</b></span><span class="del"><b>&minus;{{DELS}}</b></span></p>
-      <div class="cover"><b>{{IN_TOUR}}</b> of <b>{{TOTAL}}</b> changed lines are walked through below. The rest are listed under Everything else.{{BARE}} These counts were checked against <code>git diff --numstat</code> of each change against its parent, file by file.<div class="bar"><i style="width: {{PCT}}%"></i></div></div>
+      <ol class="overview">{{OVERVIEW}}</ol>
     </header>
 
     {{CHAPTERS}}
