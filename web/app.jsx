@@ -1,8 +1,9 @@
 import { parseDiffFromFile } from "@pierre/diffs";
-import { CodeView } from "@pierre/diffs/react";
+import { FileDiff } from "@pierre/diffs/react";
 import { FileTree, useFileTree } from "@pierre/trees/react";
 import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { Markdown } from "@pierre/words/react";
 import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels";
 
 import { THEME_GROUPS, THEMES, themeOf } from "./themes/themes.js";
@@ -47,31 +48,18 @@ const openInEditor = (path, line) => {
   link.click();
 };
 
-const itemOf = (file, collapsed, version) => ({
-  id: file.path,
-  type: "diff",
-  sig: file.sig,
-  fileDiff: parseDiffFromFile({ name: file.oldPath ?? file.path, contents: file.old }, { name: file.path, contents: file.new }),
-  collapsed,
-  version,
-});
-
-// The next item list: unchanged files keep their item (and their parsed diff), changed ones are parsed again.
-// Returns the current list itself when nothing changed, so an update with the same data renders nothing.
-function reconcile(current, change, viewed) {
-  const byId = new Map(current.map((item) => [item.id, item]));
-  const next = change.files
-    .filter((f) => !f.binary)
-    .map((f) => {
-      const item = byId.get(f.path);
-      const collapsed = viewed.has(f.path);
-      if (item && item.sig === f.sig) {
-        return item.collapsed === collapsed ? item : { ...item, collapsed, version: item.version + 1 };
-      }
-      return itemOf(f, collapsed, item ? item.version + 1 : 0);
-    });
-  return next.length === current.length && next.every((item, i) => item === current[i]) ? current : next;
+// A file's parsed diff, kept while its diff stays the same (its signature), so a live update parses only what changed.
+const parsedCache = new Map();
+function parsedDiff(file) {
+  let parsed = parsedCache.get(file.sig);
+  if (!parsed) {
+    parsed = parseDiffFromFile({ name: file.oldPath ?? file.path, contents: file.old }, { name: file.path, contents: file.new });
+    parsedCache.set(file.sig, parsed);
+  }
+  return parsed;
 }
+
+const isMarkdown = (path) => /\.(md|markdown)$/i.test(path);
 
 function ChangeId({ change }) {
   return (
@@ -136,24 +124,19 @@ function Tree({ change, viewed, onOpen }) {
 const paragraphs = (text) => text.split(/\n\s*\n/).map((p) => p.replace(/\s*\n\s*/g, " ").trim()).filter(Boolean);
 
 const baseOptions = {
-  stickyHeaders: true,
+  stickyHeader: true,
   lineDiffType: "word",
   preferredHighlighter: "highlights",
-  itemMetrics: { lineHeight: 24 },
-  layout: { paddingTop: 16, paddingBottom: 48, gap: 20 },
   lineHoverHighlight: "number",
   // Each file reads as one block: its header is a tinted band with a rule under it (the box is styled on the page).
   unsafeCSS:
     "[data-diffs-header] { background: var(--file-band); box-shadow: inset 0 -1px 0 var(--line); } [data-title] { font-weight: 500; }",
-  // A line number opens the file at that line. Removed lines aren't in the file any more, so they open it at the top.
-  onLineNumberClick: (props, context) =>
-    openInEditor(context.item.id, props.annotationSide === "deletions" ? undefined : props.lineNumber),
 };
 
-// One options object per display combination, so CodeView sees the same object until a toggle changes.
+// One options object per file and display combination, so a file's diff sees the same object until something changes.
 const optionsCache = new Map();
-function optionsFor({ diffStyle, wrap, expandAll }, themeId, mode) {
-  const key = `${diffStyle}:${wrap}:${expandAll}:${themeId}:${mode}`;
+function optionsFor(path, collapsed, { diffStyle, wrap, expandAll }, themeId, mode) {
+  const key = `${path}\n${collapsed}:${diffStyle}:${wrap}:${expandAll}:${themeId}:${mode}`;
   if (!optionsCache.has(key)) {
     const { light, dark } = themeOf(themeId);
     optionsCache.set(key, {
@@ -163,44 +146,144 @@ function optionsFor({ diffStyle, wrap, expandAll }, themeId, mode) {
       diffStyle,
       overflow: wrap ? "wrap" : "scroll",
       expandUnchanged: expandAll,
+      collapsed,
+      // A line number opens the file at that line. Removed lines aren't in the file any more, so they open it at the top.
+      onLineNumberClick: (props) => openInEditor(path, props.annotationSide === "deletions" ? undefined : props.lineNumber),
     });
   }
   return optionsCache.get(key);
 }
 
-function Diffs({ change, viewerRef, display, themeId, mode, viewed, onToggleViewed }) {
-  const [items, setItems] = useState(() => reconcile([], change, viewed));
-  useEffect(() => {
-    setItems((current) => reconcile(current, change, viewed));
-  }, [change, viewed]);
+// About how tall a file's diff draws (header, rows of 24px, a separator per hunk), held until it is drawn.
+function estimatedHeight(fileDiff, folded, diffStyle) {
+  if (folded) return 42;
+  const rows = fileDiff.hunks.reduce((n, h) => n + (diffStyle === "split" ? h.splitLineCount : h.unifiedLineCount), 0);
+  return 42 + rows * 24 + fileDiff.hunks.length * 32;
+}
+
+// A file is drawn once it comes near the screen, and stays drawn: a long change doesn't draw every file up front.
+function useNearScreen() {
+  const [near, setNear] = useState(false);
+  const ref = (el) => {
+    if (!el || near) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) setNear(true);
+      },
+      { rootMargin: "1200px 0px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  };
+  return [near, ref];
+}
+
+function FileBlock({ file, display, themeId, mode, viewed, previewed, onToggleViewed, onTogglePreview }) {
+  const [near, ref] = useNearScreen();
+  // A file folds when it's viewed; the chevron overrides that either way until Viewed is toggled again.
+  const [fold, setFold] = useState(null);
+  useEffect(() => setFold(null), [viewed]);
+  const folded = fold ?? viewed;
+  const fileDiff = parsedDiff(file);
+  const markdown = isMarkdown(file.path);
+  const showPreview = markdown && previewed && !folded;
   return (
-    <CodeView
-      ref={viewerRef}
-      items={items}
-      className="diffs"
-      options={optionsFor(display, themeId, mode)}
-      renderHeaderMetadata={(item) => (
-        <span className="file-actions">
-          <button
-            type="button"
-            className="viewed"
-            aria-pressed={viewed.has(item.id)}
-            title={viewed.has(item.id) ? "Mark as not viewed" : "Mark as viewed and fold the file"}
-            onClick={() => onToggleViewed(item.id)}
-          >
-            <span className="box" aria-hidden="true">
-              <svg viewBox="0 0 16 16">
-                <path d="m4 8.5 2.5 2.5 5.5-6" />
+    <section className="file" data-path={file.path} data-preview={showPreview || undefined} data-folded={folded || undefined} ref={ref}>
+      {near ? (
+        <FileDiff
+          fileDiff={fileDiff}
+          options={optionsFor(file.path, folded || showPreview, display, themeId, mode)}
+          renderHeaderPrefix={() => (
+            <button
+              type="button"
+              className="fold"
+              aria-expanded={!folded}
+              aria-label={folded ? `Expand ${file.path}` : `Collapse ${file.path}`}
+              title={folded ? "Expand file" : "Collapse file"}
+              onClick={() => setFold(!folded)}
+            >
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path d="m6 4 4 4-4 4" />
               </svg>
+            </button>
+          )}
+          renderHeaderMetadata={() => (
+            <span className="file-actions">
+              {markdown && (
+                <span className="show" role="group" aria-label="Show">
+                  <Toggle label="Diff" pressed={!previewed} onChange={() => onTogglePreview(file.path, false)} />
+                  <Toggle label="Preview" pressed={previewed} onChange={() => onTogglePreview(file.path, true)} />
+                </span>
+              )}
+              <button
+                type="button"
+                className="viewed"
+                aria-pressed={viewed}
+                title={viewed ? "Mark as not viewed" : "Mark as viewed and fold the file"}
+                onClick={() => onToggleViewed(file.path)}
+              >
+                <span className="box" aria-hidden="true">
+                  <svg viewBox="0 0 16 16">
+                    <path d="m4 8.5 2.5 2.5 5.5-6" />
+                  </svg>
+                </span>
+                Viewed
+              </button>
+              <a className="open" href={editorUrl(file.path)} title={`Open ${file.path} in ${SETTINGS.editorName}`}>
+                Open in {SETTINGS.editorName}
+              </a>
             </span>
-            Viewed
-          </button>
-          <a className="open" href={editorUrl(item.id)} title={`Open ${item.id} in ${SETTINGS.editorName}`}>
-            Open in {SETTINGS.editorName}
-          </a>
-        </span>
+          )}
+        />
+      ) : (
+        <div style={{ height: estimatedHeight(fileDiff, folded, display.diffStyle) }} />
       )}
-    />
+      {near && showPreview && (
+        <Markdown className="preview" mode="static">
+          {file.status === "deleted" ? file.old : file.new}
+        </Markdown>
+      )}
+    </section>
+  );
+}
+
+// Only the open change's files keep a parsed diff and options: the caches follow the change on screen.
+function forgetOthers(files) {
+  const sigs = new Set(files.map((f) => f.sig));
+  for (const sig of parsedCache.keys()) if (!sigs.has(sig)) parsedCache.delete(sig);
+  const paths = new Set(files.map((f) => f.path));
+  for (const key of optionsCache.keys()) if (!paths.has(key.slice(0, key.indexOf("\n")))) optionsCache.delete(key);
+}
+
+function Diffs({ change, viewerRef, display, themeId, mode, viewed, onToggleViewed }) {
+  useEffect(() => forgetOthers(change.files), [change]);
+  // Markdown files open in Preview; these are the ones switched to Diff.
+  const [diffed, setDiffed] = useState(() => new Set());
+  const togglePreview = (path, on) =>
+    setDiffed((current) => {
+      const next = new Set(current);
+      if (on) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+  return (
+    <div className="diffs" ref={viewerRef}>
+      {change.files
+        .filter((f) => !f.binary)
+        .map((f) => (
+          <FileBlock
+            key={f.path}
+            file={f}
+            display={display}
+            themeId={themeId}
+            mode={mode}
+            viewed={viewed.has(f.path)}
+            previewed={!diffed.has(f.path)}
+            onToggleViewed={onToggleViewed}
+            onTogglePreview={togglePreview}
+          />
+        ))}
+    </div>
   );
 }
 
@@ -490,7 +573,8 @@ function App({ initial }) {
     store(marksKey(change.change), marks);
     setMarksTick((n) => n + 1);
   };
-  const open = (path) => viewerRef.current?.scrollTo({ type: "item", id: path, align: "start" });
+  const open = (path) =>
+    viewerRef.current?.querySelector(`[data-path="${CSS.escape(path)}"]`)?.scrollIntoView({ block: "start" });
   const adds = change.files.reduce((n, f) => n + f.adds, 0);
   const dels = change.files.reduce((n, f) => n + f.dels, 0);
 

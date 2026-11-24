@@ -12,7 +12,10 @@ Ctrl-C.
 - **Right:** a slim bar with the picked change's id, commit and counts and the display toggles, then every file's diff
   ([@pierre/diffs](https://diffs.com)): single or split view (single by default), word-level changes, sticky file
   headers, and folded unchanged lines that open on click. Clicking a file in the tree scrolls to it.
-- **Per file:** "Viewed" folds the file and stays until that file's diff changes, even when the change is rewritten.
+- **Markdown:** a Markdown file opens in Preview, rendered in place of its diff
+  ([@pierre/words](https://diffs.com/docs#words)), with tables, task lists and code; Diff in its header shows the diff.
+- **Per file:** the chevron before the name folds the file to its header and opens it again. "Viewed" folds the file
+  and stays until that file's diff changes, even when the change is rewritten; the chevron still opens a viewed file.
   "Open in" opens the file in your editor, and a line number opens it at that line (a removed line opens the file at
   the top).
 - **Display:** Wrap lines and Expand all (every unchanged line shown), remembered with the single or split choice.

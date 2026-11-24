@@ -204,6 +204,7 @@ def page(title):
     for key, value in {
         "{{TITLE}}": title,
         "{{FONT_CSS}}": (WEB / "font.css").read_text(),
+        "{{MARKDOWN_CSS}}": (ROOT / "node_modules" / "@pierre" / "words" / "dist" / "styles.css").read_text(),
         "{{BUNDLE}}": bundle().replace("</script", "<\\/script"),
     }.items():
         out = out.replace(key, value)

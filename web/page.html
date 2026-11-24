@@ -11,6 +11,9 @@
 {{FONT_CSS}}
 </style>
 <style>
+{{MARKDOWN_CSS}}
+</style>
+<style>
 :root { --bg: #fff; --text: #171717; --text-2: #3b3b3b; --text-3: #737373; --line: #e8e8e8; --surface-2: #f5f7fa;
   --green: #157e3c; --red: oklch(0.58 0.2 27); --plum: oklch(0.55 0.14 320); --amber: oklch(0.56 0.12 70); --bar: oklch(0.627 0.194 149.214);
   --file-band: #f6f7f9; --font: "Fixel", system-ui, -apple-system, sans-serif; --mono: "JetBrains Mono", ui-monospace, Menlo, monospace; color-scheme: light; }
@@ -69,8 +72,16 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text-2
 .layout button[aria-pressed="true"] { background: var(--surface-2); color: var(--text); }
 .head code { font: 450 12px var(--mono); }
 .add { color: var(--green); } .del { color: var(--red); }
-.diffs { flex: 1; min-height: 0; overflow: auto; padding: 0 28px; --diffs-font-family: "JetBrains Mono"; --diffs-header-font-family: "JetBrains Mono"; --diffs-font-size: 12.5px; --diffs-line-height: 24px; font-weight: 350; }
-.diffs diffs-container { display: block; border: 1px solid var(--line); border-radius: 8px; overflow: clip; }
+.diffs { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 20px; padding: 0 28px 48px; --diffs-font-family: "JetBrains Mono"; --diffs-header-font-family: "JetBrains Mono"; --diffs-font-size: 12.5px; --diffs-line-height: 24px; font-weight: 350; }
+/* One box per file: its header, then its diff or, for Markdown, its rendered preview. */
+.file { flex: none; border: 1px solid var(--line); border-radius: 8px; overflow: clip; }
+/* The space above the first file is its margin, not the list's padding: a pinned header sits at the very top. */
+.file:first-child { margin-top: 16px; }
+.file diffs-container { display: block; }
+/* In preview the diff is only its header: the header itself stays at the top while the rendered file scrolls under it. */
+.file[data-preview] diffs-container { position: sticky; top: 0; z-index: 1; }
+.preview { padding: 20px 28px 28px; max-width: 80ch; font: 400 14.5px/1.7 var(--font); color: var(--text); }
+.preview :is(pre, code) { font-family: var(--mono); }
 .tree { --trees-bg-override: var(--bg); --trees-search-bg-override: var(--bg); --trees-input-bg-override: var(--bg); --trees-font-family-override: var(--font); --trees-font-weight-regular-override: 400;
   /* The tree's own palette is a faint grey; it takes the page's ink, and status colours from the page's palette. */
   --trees-fg-override: var(--text-2); --trees-fg-muted-override: var(--text-3); --trees-selected-fg-override: var(--text);
@@ -79,7 +90,22 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text-2
   --trees-git-renamed-color-override: var(--plum); }
 .controls { display: flex; flex-wrap: wrap; gap: 8px; }
 .controls .layout { margin-top: 0; }
+/* The chevron before a file's name folds it to its header, as on GitHub: it points down when open, right when folded. */
+.fold { display: inline-grid; place-items: center; flex: none; width: 22px; height: 22px; margin: 0 -2px 0 -6px; padding: 0; border: 0;
+  border-radius: 5px; background: none; color: var(--text-3); cursor: pointer; }
+.fold:hover { color: var(--text); background: color-mix(in oklab, var(--text) 7%, transparent); }
+.fold:focus-visible { outline: 2px solid var(--bar); outline-offset: 0; }
+.fold svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round;
+  transform: rotate(90deg); transition: transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+.fold[aria-expanded="false"] svg { transform: none; }
+@media (prefers-reduced-motion: reduce) { .fold svg { transition: none; } }
 .file-actions { display: inline-flex; align-items: center; gap: 10px; }
+/* A Markdown file's Diff | Preview: the same type, height and outline as Viewed and Open beside it. */
+.show { display: inline-flex; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--line); }
+.show button { border: 0; background: none; padding: 2px 9px; border-radius: 6px; font: 500 12px/1.6 var(--font); color: var(--text-3); cursor: pointer; }
+.show button:hover { color: var(--text); }
+.show button[aria-pressed="true"] { background: var(--surface-2); color: var(--text); }
+.show button:focus-visible { outline: 2px solid var(--bar); outline-offset: 1px; }
 .viewed { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px 2px 6px; border: 0; border-radius: 6px; background: none;
   box-shadow: inset 0 0 0 1px var(--line); font: 500 12px/1.6 var(--font); color: var(--text-3); cursor: pointer; }
 .viewed:hover { color: var(--text); background: var(--surface-2); }

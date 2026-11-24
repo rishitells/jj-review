@@ -6,6 +6,7 @@
   "dependencies": {
     "@pierre/diffs": "1.7.1",
     "@pierre/trees": "1.0.0",
+    "@pierre/words": "0.3.0",
     "esbuild": "0.25.10",
     "react": "19.2.0",
     "react-dom": "19.2.0",
