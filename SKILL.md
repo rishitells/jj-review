@@ -9,11 +9,15 @@ description: "Render jj changes as one review page: the changes on the left, and
 
 - **Left:** the changes in stack order, each with its change id (shortest unique prefix set off, as in `jj log`) and
   subject, then the picked change's files as a tree ([@pierre/trees](https://diffs.com)) with git status and search.
-  The divider resizes the sidebar and the width is remembered.
+  Viewed files carry a tick, and a count sits under the tree. The divider resizes the sidebar and the width is
+  remembered.
 - **Right:** the picked change's id, commit, counts and description, then every file's diff
   ([@pierre/diffs](https://diffs.com)): single or split view (single by default), word-level changes, sticky file
-  headers, folded unchanged lines that open on click, and an "Open in" link to your editor. Clicking a file in the tree
-  scrolls to it.
+  headers, and folded unchanged lines that open on click. Clicking a file in the tree scrolls to it.
+- **Per file:** "Viewed" folds the file and is remembered per commit, so a change that moves on starts unviewed
+  again. "Open in" opens the file in your editor, and a line number opens it at that line (a removed line opens the
+  file at the top).
+- **Display:** Wrap lines and Expand all (every unchanged line shown), remembered with the single or split choice.
 
 The code comes from git through jj: each change against its first parent. Nothing on the page is written by hand.
 

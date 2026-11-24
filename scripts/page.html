@@ -46,7 +46,21 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text-2
 .add { color: var(--green); } .del { color: var(--red); }
 .diffs { flex: 1; min-height: 0; overflow: auto; padding: 0 28px; --diffs-font-family: "JetBrains Mono"; --diffs-header-font-family: "JetBrains Mono"; --diffs-font-size: 12.5px; --diffs-line-height: 24px; font-weight: 350; }
 .tree { --trees-font-family-override: "JetBrains Mono", ui-monospace, monospace; --trees-font-weight-regular-override: 350; }
-.open { font-size: 12px; color: var(--text-3); text-decoration: none; padding: 2px 8px; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--line); }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.controls .layout { margin-top: 0; }
+.file-actions { display: inline-flex; align-items: center; gap: 10px; }
+.viewed { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px 2px 6px; border: 0; border-radius: 6px; background: none;
+  box-shadow: inset 0 0 0 1px var(--line); font: 500 12px/1.6 var(--font); color: var(--text-3); cursor: pointer; }
+.viewed:hover { color: var(--text); background: var(--surface-2); }
+.viewed .box { display: inline-grid; place-items: center; width: 13px; height: 13px; border-radius: 3px; box-shadow: inset 0 0 0 1.25px var(--text-3); }
+.viewed svg { width: 11px; height: 11px; fill: none; stroke: transparent; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.viewed[aria-pressed="true"] { color: var(--green); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--green) 35%, transparent);
+  background: color-mix(in oklab, var(--green) 7%, transparent); }
+.viewed[aria-pressed="true"] .box { background: var(--green); box-shadow: none; }
+.viewed[aria-pressed="true"] svg { stroke: var(--bg); }
+.viewed:focus-visible { outline: 2px solid var(--bar); outline-offset: 1px; }
+.viewed-count { margin: 0; padding: 10px 4px 14px; border-top: 1px solid var(--line); font-size: 12px; color: var(--text-3); }
+.open { font: 500 12px/1.6 var(--font); color: var(--text-3); text-decoration: none; padding: 2px 8px; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--line); }
 .open:hover { color: var(--text); background: var(--surface-2); }
 </style>
 </head>
