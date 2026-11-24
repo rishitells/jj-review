@@ -292,6 +292,10 @@ function App({ initial }) {
               {status === "live" ? "Live" : "Reconnecting"}
             </span>
           </p>
+          <Tree key={change.change} change={change} viewed={viewed} onOpen={open} />
+          <p className="viewed-count">
+            {viewed.size} of {change.files.length} files viewed
+          </p>
           <ol className="chain" aria-label="Changes, newest first">
             {[...data.changes].reverse().map((c) => {
               const open = c.change === change.change;
@@ -319,10 +323,6 @@ function App({ initial }) {
               );
             })}
           </ol>
-          <Tree key={change.change} change={change} viewed={viewed} onOpen={open} />
-          <p className="viewed-count">
-            {viewed.size} of {change.files.length} files viewed
-          </p>
         </aside>
       </Panel>
       <Separator className="resizer" />
