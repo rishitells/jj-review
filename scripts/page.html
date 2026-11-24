@@ -13,9 +13,9 @@
 <style>
 :root { --bg: #fff; --text: #171717; --text-2: #3b3b3b; --text-3: #737373; --line: #e8e8e8; --surface-2: #f5f7fa;
   --green: #157e3c; --red: oklch(0.58 0.2 27); --plum: oklch(0.55 0.14 320); --bar: oklch(0.627 0.194 149.214);
-  --font: "Fixel", system-ui, -apple-system, sans-serif; --mono: "JetBrains Mono", ui-monospace, Menlo, monospace; color-scheme: light; }
+  --file-band: #f6f7f9; --font: "Fixel", system-ui, -apple-system, sans-serif; --mono: "JetBrains Mono", ui-monospace, Menlo, monospace; color-scheme: light; }
 @media (prefers-color-scheme: dark) { :root { --bg: #191b1f; --text: #fcfcfd; --text-2: #ccd2db; --text-3: #8b93a1; --line: #2c313a;
-  --surface-2: #252c37; --green: oklch(0.871 0.15 154.449); --red: oklch(0.7 0.17 27); --plum: oklch(0.72 0.13 320); color-scheme: dark; } }
+  --surface-2: #252c37; --file-band: #20242b; --green: oklch(0.871 0.15 154.449); --red: oklch(0.7 0.17 27); --plum: oklch(0.72 0.13 320); color-scheme: dark; } }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text-2); font: 450 14px/1.5 var(--font); }
 #root, .page { height: 100%; }
 .page { height: 100%; }
@@ -45,6 +45,7 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text-2
 .head code { font: 450 12px var(--mono); }
 .add { color: var(--green); } .del { color: var(--red); }
 .diffs { flex: 1; min-height: 0; overflow: auto; padding: 0 28px; --diffs-font-family: "JetBrains Mono"; --diffs-header-font-family: "JetBrains Mono"; --diffs-font-size: 12.5px; --diffs-line-height: 24px; font-weight: 350; }
+.diffs diffs-container { display: block; border: 1px solid var(--line); border-radius: 8px; overflow: clip; }
 .tree { --trees-font-family-override: "JetBrains Mono", ui-monospace, monospace; --trees-font-weight-regular-override: 350; }
 .controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 .controls .layout { margin-top: 0; }

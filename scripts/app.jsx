@@ -95,8 +95,11 @@ const baseOptions = {
   lineDiffType: "word",
   preferredHighlighter: "highlights",
   itemMetrics: { lineHeight: 24 },
-  layout: { paddingTop: 16, paddingBottom: 48, gap: 16 },
+  layout: { paddingTop: 16, paddingBottom: 48, gap: 20 },
   lineHoverHighlight: "number",
+  // Each file reads as one block: its header is a tinted band with a rule under it (the box is styled on the page).
+  unsafeCSS:
+    "[data-diffs-header] { background: var(--file-band); box-shadow: inset 0 -1px 0 var(--line); } [data-title] { font-weight: 500; }",
   // A line number opens the file at that line. Removed lines aren't in the file any more, so they open it at the top.
   onLineNumberClick: (props, context) =>
     openInEditor(context.item.id, props.annotationSide === "deletions" ? undefined : props.lineNumber),
