@@ -279,7 +279,16 @@ function App({ initial }) {
         <aside className="side">
           <p className="eyebrow">
             {data.repo} · {data.changes.length} {data.changes.length === 1 ? "change" : "changes"}
-            <span className={`live ${status}`} title={status === "live" ? "Follows jj as it changes" : "Reconnecting"}>
+            <span
+              className={`live ${status}`}
+              title={
+                status !== "live"
+                  ? "Reconnecting to the review server"
+                  : data.snapshotsOnSave
+                    ? "Follows jj as it changes, and your files as you save them"
+                    : "Follows jj as it changes; saved edits show after the next jj command (turn on jj's watchman snapshot trigger to follow saves)"
+              }
+            >
               {status === "live" ? "Live" : "Reconnecting"}
             </span>
           </p>

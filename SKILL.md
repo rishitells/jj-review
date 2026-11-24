@@ -28,7 +28,20 @@ The server checks jj's operation log every second, without touching the working 
 `describe`, `squash`, `new`, rebase, or another person's or agent's commit), the page reads the changes again and
 updates in place: only files whose diff changed are redrawn, and the picked change, scroll, Viewed and display stay.
 
-- Edits jj hasn't recorded yet show up after the next jj command. Starting the server records the working copy once.
+- **Saved edits need jj's watchman trigger.** jj records file edits (snapshots the working copy) only when a jj
+  command runs, so by default a save shows up after the next jj command. jj can record them as they're saved instead,
+  with watchman and its snapshot trigger. It's a per-repository setting, so each repository needs it once:
+
+  ```bash
+  brew install watchman
+  jj config set --repo fsmonitor.backend watchman
+  jj config set --repo fsmonitor.watchman.register-snapshot-trigger true
+  jj debug watchman status   # "Background snapshotting is currently active."
+  ```
+
+  With it, a save reaches the page in about a second. `review.py` checks the setting at startup and prints these
+  steps when it's off, and the Live badge's tooltip says which mode the page is in. The jj docs warn that watchman
+  can strain on very large repositories. Starting the server records the working copy once either way.
 - Other workspaces share the operation log, so their commands make the page look again; nothing changes on it unless
   this range changed.
 - Nothing is written to disk. The page is built in memory and the data is read from jj on request. Each run gets a

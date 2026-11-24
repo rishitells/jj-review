@@ -85,6 +85,25 @@ def read_change(gitdir, c):
     }
 
 
+def snapshots_on_save(repo):
+    """Whether jj records file edits as they're saved: watchman with its snapshot trigger. Without it, edits reach jj
+    (and the page) only when some jj command runs."""
+    def setting(name):
+        try:
+            return jj(repo, "config", "get", name, snapshot=False).strip()
+        except subprocess.CalledProcessError:
+            return ""
+    return setting("fsmonitor.backend") == "watchman" and setting("fsmonitor.watchman.register-snapshot-trigger") == "true"
+
+
+WATCHMAN_HINT = """Saved edits reach this page only after the next jj command. To have jj record them as they're saved, install
+watchman (brew install watchman) and turn on its snapshot trigger for this repository:
+
+    jj config set --repo fsmonitor.backend watchman
+    jj config set --repo fsmonitor.watchman.register-snapshot-trigger true
+"""
+
+
 class Review:
     """The changes to show, read again when asked; a change whose commit didn't move is reused."""
 
@@ -94,7 +113,9 @@ class Review:
         self.gitdir = jj(repo, "git", "root", snapshot=snapshot).strip()
         self.by_commit = {}
         editor = os.environ.get("GUIDED_REVIEW_EDITOR") or "zed://file/{path}"
+        self.snapshots_on_save = snapshots_on_save(repo)
         self.settings = {
+            "snapshotsOnSave": self.snapshots_on_save,
             "workspace": self.workspace,
             "repo": Path(self.workspace).name,
             "revset": revset,
@@ -217,6 +238,8 @@ def serve(review, no_open):
     server.daemon_threads = True
     url = f"http://127.0.0.1:{server.server_address[1]}/"
     print(f"Reviewing {review.revset} in {review.settings['repo']} at {url} (live; Ctrl-C stops it)", file=sys.stderr)
+    if not review.snapshots_on_save:
+        print(WATCHMAN_HINT, file=sys.stderr)
     if not no_open:
         open_in_browser(url)
     try:
