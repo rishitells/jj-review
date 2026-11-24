@@ -1,22 +1,11 @@
 #!/usr/bin/env python3
-"""Checks and renders reviews written in jj change descriptions.
+"""Renders jj changes as one review page: each change's description, then every file it touches as a diff.
 
-    review.py check  [-R repo] [revset]            exit 1 unless every change's Review block is complete and correct
-    review.py render [-R repo] [revset] [--open]   write one page for the changes, bottom of the stack first
+    review.py [-R repo] [revset] [--no-open]
 
-The revset defaults to 'trunk()..@'. Changes without a diff (an empty working copy) are left out.
-
-A change's description is its subject, its body, then a Review block of files and notes:
-
-    Review:
-    path/to/file.ts
-      14-18: What these lines do and why. `code` and **bold** work.
-        A deeper-indented line continues the note.
-      20,24-26: A note can name several ranges.
-
-Paths are from the repository root, and line numbers are the file's as the change leaves them. The page shows every
-file the change touches, GitHub style, with the notes beside their lines. The code comes from git; the notes are the
-author's.
+With no revset it shows the changes from the working copy down to the nearest ancestor that has a bookmark (or
+trunk), so a stack under review reads from its base. Changes without a diff (an empty working copy) are left out. Each file links to
+your editor: Zed by default, or GUIDED_REVIEW_EDITOR (for example 'vscode://file/{path}').
 """
 import argparse
 import html
@@ -54,8 +43,6 @@ def is_large(fd):
 
 
 RANGES = r"\d+(?:-\d+)?(?:\s*,\s*\d+(?:-\d+)?)*"
-FILE = re.compile(r"^(\S+)\s*$")
-NOTE = re.compile(rf"^(\s+)({RANGES}):\s+(.*)$")
 
 
 class ReviewError(Exception):
@@ -66,7 +53,8 @@ class ReviewError(Exception):
 
 
 def jj(repo, *args):
-    return subprocess.run(["jj", "-R", repo, "--no-pager", "--color=never", *args], capture_output=True, text=True, check=True).stdout
+    where = ["-R", repo] if repo else []
+    return subprocess.run(["jj", *where, "--no-pager", "--color=never", *args], capture_output=True, text=True, check=True).stdout
 
 
 def changes_in(repo, revset):
@@ -86,40 +74,6 @@ def changes_in(repo, revset):
     return changes
 
 
-
-
-# --------------------------------------------------------------------------------------------- the description
-
-
-def parse_description(text):
-    """Subject, body, and the Review block's notes by file. Errors name the description's line."""
-    lines = text.rstrip("\n").split("\n")
-    subject = lines[0].strip()
-    start = next((i for i, l in enumerate(lines) if l.strip() == "Review:"), None)
-    if start is None:
-        return subject, "\n".join(lines[1:]).strip(), None, []
-    body = "\n".join(lines[1:start]).strip()
-    files, errors = {}, []
-    cur = note = None
-    for n, raw in enumerate(lines[start + 1:], start + 2):
-        if not raw.strip():
-            note = None
-        elif raw[0] not in " \t" and (m := FILE.match(raw)):
-            if m[1] in files:
-                errors.append(f"line {n}: {m[1]} is listed twice")
-            cur = files.setdefault(m[1], {"notes": [], "line": n})
-            note = None
-        elif raw[0] in " \t" and cur is not None and (m := NOTE.match(raw)) and (note is None or len(m[1]) <= note["indent"]):
-            note = {"lines": m[2], "text": m[3], "indent": len(m[1])}
-            cur["notes"].append(note)
-        elif raw[0] in " \t" and note is not None:
-            note["text"] += " " + raw.strip()
-        else:
-            errors.append(f"line {n}: {raw.strip()!r} isn't a file path or an indented note ('  12-18: text')")
-    for path, f in files.items():
-        if not f["notes"]:
-            errors.append(f"line {f['line']}: {path} has no notes")
-    return subject, body, files, errors
 
 
 # ------------------------------------------------------------------------------------------------- one change
@@ -256,18 +210,17 @@ def hunk_listing(fd, hunk):
 
 
 def read_change(gitdir, ch):
-    """A change's diff and its notes, with every problem the check reports."""
-    subject, body, notes, errors = parse_description(ch["description"])
+    """A change's diff and description, with any count that disagrees with git."""
+    lines = ch["description"].strip().split("\n")
     files = {f["path"]: FileDiff(gitdir, ch["parent"], ch["commit"], f) for f in read_diff(gitdir, ch["parent"], ch["commit"])}
     counted = numstat(gitdir, ch["parent"], ch["commit"])
+    errors = []
     for path in sorted(set(counted) | set(files)):
         fd = files.get(path)
         got = "missing from the diff" if fd is None else (None if fd.binary and not fd.hunks else (len(fd.added), len(fd.dels)))
         if counted.get(path, "missing from numstat") != got:
             errors.append(f"{path}: git diff --numstat says {counted.get(path)}, the page would show {got}")
-    if notes is None:
-        errors.append("no Review: block in the description")
-    return {**ch, "subject": subject, "body": body, "notes": notes or {}, "files": files, "errors": errors}
+    return {**ch, "subject": lines[0] or "(no description)", "body": "\n".join(lines[1:]).strip(), "files": files, "errors": errors}
 
 
 def shown_ranges(fd):
@@ -281,44 +234,25 @@ def shown_ranges(fd):
 
 
 def build_change(c, part, file_texts, open_attrs):
-    """One change's files as HTML sections, and its index rows. Problems go into c["errors"]."""
-    files, notes, errors = c["files"], c["notes"], c["errors"]
-    for path, f in notes.items():
-        if path not in files:
-            errors.append(f"line {f['line']}: the change doesn't touch {path}")
+    """One change's files as HTML sections, and its index rows."""
     sections, toc = [], []
-    for fi, path in enumerate(sorted(files), 1):
-        fd, fid = files[path], f"c{part}-f{fi}"
-        file_notes = notes.get(path, {}).get("notes", [])
+    for fi, path in enumerate(sorted(c["files"]), 1):
+        fd, fid = c["files"][path], f"c{part}-f{fi}"
         ranges = shown_ranges(fd)
-        if fd.hunks and not file_notes and not any(p.search(path) for p in GENERATED):
-            errors.append(f"{path}: changed, with no note in the Review block")
         if not fd.hunks:
             body = f'<p class="file-note">{"Binary file" if fd.binary else f"Mode {fd.mode}" if fd.mode else f"Empty file, {fd.status}"}</p>'
         elif not fd.head_lines or not ranges:
-            if file_notes:
-                errors.append(f"line {notes[path]['line']}: {path} is deleted, so its lines can't take notes")
             body = "".join(hunk_listing(fd, h) for h in fd.hunks)
         elif is_large(fd):
-            try:
-                body = listing(fd, ranges, file_notes, "", open_attrs(path))
-            except ReviewError as err:
-                errors.append(f"line {notes[path]['line']}: {err}")
-                body = listing(fd, ranges, [], "", open_attrs(path))
-            body = f'<details class="rest-file"><summary><span class="path">Large file, {len(fd.head_lines)} lines: show the diff</span></summary>{body}</details>'
+            body = f'<details class="rest-file"><summary><span class="path">Large file, {len(fd.head_lines)} lines: show the diff</span></summary>{listing(fd, ranges, [], "", "")}</details>'
         else:
             key = f"{part}:{fi}"
             file_texts[key] = {"lines": fd.head_html, "added": sorted(fd.added), "dels": [[d["after"], fd.old_html(d["old"])] for d in fd.dels]}
-            try:
-                body = listing(fd, ranges, file_notes, key, open_attrs(path))
-            except ReviewError as err:
-                errors.append(f"line {notes[path]['line']}: {err}")
-                body = listing(fd, ranges, [], key, open_attrs(path))
-        adds, dels = len(fd.added), len(fd.dels)
-        stat = f'<span class="add">+{adds}</span> <span class="del">&minus;{dels}</span>'
+            body = listing(fd, ranges, [], key, "")
+        stat = f'<span class="add">+{len(fd.added)}</span> <span class="del">&minus;{len(fd.dels)}</span>'
         sections.append(
             f'<section class="chapter file" id="{fid}"><div class="step"><div class="step-head"><span class="path">{html.escape(path)}</span>'
-            f'<span class="fstat">{stat}</span><span class="lines"></span>'
+            f'<span class="fstat">{stat}</span>{open_attrs(path)}<span class="lines"></span>'
             f'<label class="read"><input type="checkbox" data-read="{fid}"> Viewed</label></div>{body}</div></section>'
         )
         toc.append((fid, path, stat))
@@ -326,6 +260,49 @@ def build_change(c, part, file_texts, open_attrs):
 
 
 # ------------------------------------------------------------------------------------------------------ page
+
+FOLDER_ICON = '<svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M1.75 2.5h4.2c.3 0 .58.13.77.36l.9 1.14h6.63c.41 0 .75.34.75.75v8.5c0 .41-.34.75-.75.75H1.75A.75.75 0 0 1 1 13.25V3.25c0-.41.34-.75.75-.75Z"/></svg>'
+FILE_ICON = '<svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" d="M3.5 1.75h6l3 3v9.5h-9z M9.5 1.75v3h3"/></svg>'
+CHEVRON = '<svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" d="m6 4 4 4-4 4"/></svg>'
+CHECK = '<svg class="check" viewBox="0 0 16 16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="m3.5 8.5 3 3 6-7"/></svg>'
+
+
+def file_tree(files):
+    """A change's files as a folder tree, GitHub style: folders first, then files, by name; a folder with one folder
+    and nothing else inside joins it on one row ("services/web/src")."""
+    root = {}
+    for fid, path, stat in files:
+        node = root
+        *dirs, name = path.split("/")
+        for d in dirs:
+            node = node.setdefault(("d", d), {})
+        node[("f", name)] = (fid, path, stat)
+
+    def join(name, node):
+        while len(node) == 1 and next(iter(node))[0] == "d":
+            ((_, sub), child), = node.items()
+            name, node = f"{name}/{sub}", child
+        return name, node
+
+    def render(node):
+        out = []
+        for (kind, name), child in sorted(node.items(), key=lambda kv: (kv[0][0] != "d", kv[0][1].lower())):
+            if kind == "d":
+                name, child = join(name, child)
+                out.append(
+                    f'<li class="dir"><details open><summary>{CHEVRON}{FOLDER_ICON}<span class="t">{html.escape(name)}</span></summary>'
+                    f'<ul>{render(child)}</ul></details></li>'
+                )
+            else:
+                fid, path, stat = child
+                out.append(
+                    f'<li class="file" data-path="{html.escape(path.lower())}"><a href="#{fid}" title="{html.escape(path)}">'
+                    f'{FILE_ICON}{CHECK}<span class="t">{html.escape(name)}</span><span class="c">{stat}</span></a></li>'
+                )
+        return "".join(out)
+
+    return render(root)
+
 
 
 def highlight(changes):
@@ -354,16 +331,18 @@ def highlight(changes):
 
 def render(repo, revset, changes, workspace):
     css = highlight(changes)
-    editor = os.environ.get("GUIDED_REVIEW_EDITOR", "")
+    editor = os.environ.get("GUIDED_REVIEW_EDITOR") or "zed://file/{path}"
     editor_name = os.environ.get("GUIDED_REVIEW_EDITOR_NAME") or urlsplit(editor).scheme.capitalize()
 
     def open_attrs(path):
         local = Path(workspace) / path
-        if not editor or not local.is_file():
+        if not local.is_file():
             return ""
         quoted = quote(str(local.resolve()), safe="/$+@:,;=!*'()&-._~")
         url = editor.replace("/{path}", "/" + quoted.lstrip("/")) if "/{path}" in editor else editor.replace("{path}", quoted)
-        return f' data-open="{html.escape(re.sub(r"[:#]?L?{line}", "", url))}" data-open-name="{html.escape(editor_name)}"'
+        return (f'<a class="open-file" href="{html.escape(url)}" title="Open in {html.escape(editor_name)}">'
+                f'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 2.5h4v4"/><path d="M13.5 2.5 8 8"/><path d="M11.5 9.5v4h-9v-9h4"/></svg>'
+                f'Open in {html.escape(editor_name)}</a>')
 
     body_html, toc_html, file_texts, overview = [], [], {}, []
     adds = dels = nfiles = 0
@@ -379,10 +358,9 @@ def render(repo, revset, changes, workspace):
             f'<p class="stats"><span><b>{len(c["files"])}</b> files</span><span class="add"><b>+{a}</b></span><span class="del"><b>&minus;{d}</b></span></p></section>'
         )
         body_html.extend(sections)
-        toc_html.append(f'<li class="part"><a href="#{pid}"><span class="n">{part}</span><span class="t">{html.escape(c["subject"])}</span></a></li>')
-        toc_html.extend(
-            f'<li><a href="#{fid}" title="{html.escape(path)}"><span class="n"></span><span class="t">{html.escape(path.rsplit("/", 1)[-1])}</span><span class="c">{stat}</span></a></li>'
-            for fid, path, stat in toc
+        toc_html.append(
+            f'<li class="part"><details open><summary><span class="n">{part}</span><span class="t">{html.escape(c["subject"])}</span></summary>'
+            f'<a class="part-link" href="#{pid}">Description</a><ul class="tree">{file_tree(toc)}</ul></details></li>'
         )
         overview.append(
             f'<li><a href="#{pid}"><span class="n">{part}</span><span class="t">{html.escape(c["subject"])}</span>'
@@ -392,8 +370,8 @@ def render(repo, revset, changes, workspace):
     head = changes[-1]
     page = (ROOT / "template.html").read_text()
     replacements = {
-        "{{TITLE}}": html.escape(f"Review: {head['subject'] if len(changes) == 1 else revset}"),
-        "{{EYEBROW}}": f"jj &middot; <code>{html.escape(revset)}</code>",
+        "{{TITLE}}": html.escape(f"Review: {head['subject'] if len(changes) == 1 else f'{Path(workspace).name}, {len(changes)} changes'}"),
+        "{{EYEBROW}}": f"jj &middot; <code>{html.escape(revset)}</code> &middot; {html.escape(Path(workspace).name)}",
         "{{HEADING}}": f"{len(changes)} {'change' if len(changes) == 1 else 'changes'}",
         "{{OVERVIEW}}": "".join(overview),
         "{{FILES}}": str(nfiles), "{{ADDS}}": str(adds), "{{DELS}}": str(dels),
@@ -420,10 +398,9 @@ def render(repo, revset, changes, workspace):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("command", choices=["check", "render"])
-    ap.add_argument("revset", nargs="?", default="trunk()..@")
-    ap.add_argument("-R", "--repository", default=".")
-    ap.add_argument("--open", action="store_true", help="open the page in the default browser")
+    ap.add_argument("revset", nargs="?", default="heads(::@- & (trunk() | bookmarks()))..@")
+    ap.add_argument("-R", "--repository", help="the workspace root of another repository (default: the one you're in)")
+    ap.add_argument("--no-open", action="store_true", help="write the page without opening it")
     args = ap.parse_intermixed_args()
 
     repo = args.repository
@@ -435,23 +412,12 @@ def main():
         sys.exit(f"jj failed: {err.stderr.strip()}")
     if not changes:
         sys.exit(f"no changes with a diff in {args.revset}")
-
-    if args.command == "render":
-        out = render(repo, args.revset, changes, workspace)
-        if args.open:
-            subprocess.run(["open" if sys.platform == "darwin" else "xdg-open", str(out)])
-    else:
-        for i, c in enumerate(changes, 1):
-            build_change(c, i, {}, lambda p: "")
-
-    failed = [c for c in changes if c["errors"]]
-    for c in changes:
-        mark = "FAIL" if c["errors"] else "ok  "
-        print(f"{mark} {c['change']} {c['subject']}", file=sys.stderr)
-        for e in c["errors"]:
-            print(f"       {e}", file=sys.stderr)
-    if failed:
-        sys.exit(1)
+    problems = [f"{c['change']} {e}" for c in changes for e in c["errors"]]
+    if problems:
+        sys.exit("The diff reading disagrees with git, so no page was written:\n" + "\n".join(problems))
+    out = render(repo, args.revset, changes, workspace)
+    if not args.no_open:
+        subprocess.run(["open" if sys.platform == "darwin" else "xdg-open", str(out)])
 
 
 if __name__ == "__main__":

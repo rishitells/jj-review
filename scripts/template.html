@@ -36,7 +36,7 @@
 
 body { background: var(--bg); color: var(--text-2); font: 450 16px/1.75 var(--font-body); }
 body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
-.page { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: 56px; max-width: 1480px; margin: 0 auto;
+.page { display: grid; grid-template-columns: 19rem minmax(0, 1fr); gap: 40px; max-width: 1480px; margin: 0 auto;
   padding-block: 40px 96px; padding-left: max(32px, env(safe-area-inset-left, 0px)); padding-right: max(32px, env(safe-area-inset-right, 0px)); }
 a { color: var(--fx-link); text-decoration: none; }
 a:hover, a:focus-visible { text-decoration: underline; }
@@ -188,11 +188,42 @@ figure.codenotes { margin: 8px 0 0; }
 .step-head .fstat { font: 450 12px/1.6 var(--font-mono); white-space: nowrap; }
 .step-head .add, .toc .add { color: var(--fx-green); } .step-head .del, .toc .del { color: var(--fx-red); }
 .step-head .read { margin-left: auto; font-size: 13px; color: var(--text-3); white-space: nowrap; }
+.open-file { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 6px; font: 450 12px/1.6 var(--font-body); color: var(--text-3); white-space: nowrap; box-shadow: inset 0 0 0 1px var(--line); }
+.open-file svg { width: 13px; height: 13px; flex: none; }
+.open-file:hover { color: var(--text); background: var(--surface-2); text-decoration: none; }
 .file-note { font-size: 14px; color: var(--text-3); }
 .change .summary p { font-size: 16px; line-height: 28px; }
-.toc li.part { margin-top: 14px; padding: 6px 0; font: 500 11px/1.4 var(--font-body); letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-3); border-bottom: 1px solid var(--line); }
-.toc li.part a { display: grid; grid-template-columns: 1.4rem minmax(0, 1fr); padding: 0; border: 0; color: inherit; }
-.toc li.part .t { text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--text-2); }
+/* The file tree: a group per change, folders that fold, files with their counts. */
+.tree-filter { width: 100%; box-sizing: border-box; margin: 0 0 10px; padding: 6px 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--bg); color: var(--text); font: 450 13px/1.4 var(--font-body); }
+.tree-filter:focus { outline: 2px solid var(--fx-bar); outline-offset: 0; border-color: transparent; }
+.tree-empty { margin: 8px 0; font-size: 13px; color: var(--text-3); }
+.toc ol.ftree { border-top: 0; }
+.ftree, .ftree ul { list-style: none; margin: 0; padding: 0; }
+.ftree ul ul { margin-left: 9px; padding-left: 8px; border-left: 1px solid var(--line); }
+.ftree summary { list-style: none; cursor: pointer; }
+.ftree summary::-webkit-details-marker { display: none; }
+.ftree > li.part { margin: 0 0 10px; padding: 0; border: 0; text-transform: none; letter-spacing: 0; font: inherit; }
+.ftree > li.part > details > summary { display: grid; grid-template-columns: 1.3rem minmax(0, 1fr); gap: 4px; padding: 6px 4px; border-radius: 6px; font-size: 13px; font-weight: 550; line-height: 1.35; color: var(--text); }
+.ftree > li.part > details > summary .n { font: 500 12px/1.5 var(--font-mono); color: var(--text-3); }
+.ftree > li.part > details > summary:hover { background: var(--surface-2); }
+.ftree .part-link { display: block; margin: 0 0 2px 1.6rem; padding: 2px 4px; font-size: 12px; color: var(--text-3); }
+.ftree .part-link:hover { color: var(--text); }
+.ftree li.dir > details > summary, .ftree li.file > a { display: flex; align-items: center; gap: 6px; padding: 3px 6px; border-radius: 6px; font-size: 13px; line-height: 1.5; color: var(--text-2); border: 0; }
+.ftree li.dir > details > summary:hover, .ftree li.file > a:hover { background: var(--surface-2); color: var(--text); text-decoration: none; }
+.ftree .t { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ftree li.dir > details > summary .t, .ftree > li.part > details > summary .t { overflow-wrap: anywhere; white-space: normal; }
+.ftree .c { font: 450 11px/1.5 var(--font-mono); white-space: nowrap; }
+.ftree .ic, .ftree .chev, .ftree .check { width: 14px; height: 14px; flex: none; }
+.ftree .ic { color: var(--text-3); }
+.ftree li.dir .ic { color: oklch(0.7 0.09 245); }
+.ftree .chev { color: var(--text-3); transition: transform 120ms; margin-left: -2px; }
+.ftree details[open] > summary > .chev { transform: rotate(90deg); }
+.ftree li.file > a { padding-left: 22px; }
+.ftree .check { display: none; color: var(--fx-green); }
+.ftree li.file.done .check { display: block; }
+.ftree li.file.done .ic { display: none; }
+.ftree li.file.done .t { color: var(--text-3); }
+.ftree li.file.here > a { background: var(--surface-2); color: var(--text); font-weight: 550; box-shadow: inset 2px 0 0 var(--fx-bar); }
 .rest-group { margin-top: 28px; }
 h3 { font-size: 17px; line-height: 24px; font-weight: 600; color: var(--text); margin: 0 0 8px; }
 h3 .count { font-weight: 450; font-size: 14px; color: var(--text-3); margin-left: 10px; }
@@ -229,7 +260,9 @@ ul.bare .count { color: var(--text-3); white-space: nowrap; }
   <button type="button" class="toc-open" id="toc-open" aria-controls="toc" aria-label="Show the contents; click to keep them open"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M3 4.5h10M3 8h10M3 11.5h6"/></svg><span id="rail-count"></span></button>
   <nav class="toc" id="toc" aria-label="Changes and files">
     <div class="toc-head"><p class="eyebrow">Changes</p><button type="button" class="toc-toggle" id="toc-toggle" aria-label="Collapse the contents" title="Collapse"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 4 5.5 8l4 4"/><path d="M13 3v10"/></svg></button></div>
-    <ol>{{TOC}}</ol>
+    <input type="search" class="tree-filter" id="tree-filter" placeholder="Filter files" aria-label="Filter files" autocomplete="off" spellcheck="false">
+    <ol class="ftree">{{TOC}}</ol>
+    <p class="tree-empty" id="tree-empty" hidden>No file matches.</p>
     <div class="progress"><span id="read-count">0</span> of <span id="read-total">0</span> files viewed<div class="bar"><i id="read-bar"></i></div></div>
   </nav>
 
@@ -325,9 +358,29 @@ ul.bare .count { color: var(--text-3); white-space: nowrap; }
   addEventListener("scroll", () => { if (!queued) { queued = true; requestAnimationFrame(markStuck); } }, { passive: true });
   markStuck();
 
+  // Filter: files whose path contains the text stay, with their folders and changes; folders open while filtering.
+  const filter = document.getElementById("tree-filter");
+  const treeEmpty = document.getElementById("tree-empty");
+  filter.addEventListener("input", () => {
+    const q = filter.value.trim().toLowerCase();
+    let any = false;
+    document.querySelectorAll(".ftree li.file").forEach((li) => { li.hidden = Boolean(q) && !li.dataset.path.includes(q); any ||= !li.hidden; });
+    [...document.querySelectorAll(".ftree li.dir, .ftree li.part")].reverse().forEach((li) => {
+      li.hidden = !li.querySelector("li.file:not([hidden])");
+      if (q) li.querySelector(":scope > details").open = true;
+    });
+    treeEmpty.hidden = any;
+  });
+  filter.addEventListener("keydown", (e) => { if (e.key === "Escape") { filter.value = ""; filter.dispatchEvent(new Event("input")); } });
+  // The file being read stays in view in the tree.
+  const keepInView = (li) => {
+    const box = li.getBoundingClientRect(), outer = toc.getBoundingClientRect();
+    if (box.top < outer.top || box.bottom > outer.bottom) li.scrollIntoView({ block: "nearest" });
+  };
+
   const links = new Map([...document.querySelectorAll(".toc a")].map((a) => [a.getAttribute("href").slice(1), a.parentElement]));
   const seen = new IntersectionObserver((entries) => {
-    entries.forEach((e) => { if (e.isIntersecting) { links.forEach((li) => li.classList.remove("here")); links.get(e.target.id)?.classList.add("here"); } });
+    entries.forEach((e) => { if (e.isIntersecting) { links.forEach((li) => li.classList.remove("here")); const li = links.get(e.target.id); if (li) { li.classList.add("here"); keepInView(li); } } });
   }, { rootMargin: "0px 0px -70% 0px" });
   document.querySelectorAll("section.chapter").forEach((s) => seen.observe(s));
 })();
