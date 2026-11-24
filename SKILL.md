@@ -32,7 +32,7 @@ The page goes to `~/.cache/guided-review/` (or `$GUIDED_REVIEW_DIST`). Changes w
 
 Run `npm ci` in `$GR/scripts` once. The first run bundles the page's script (React, @pierre/diffs, @pierre/trees,
 react-resizable-panels) with esbuild into `scripts/bundle.js`, and rebuilds it when `app.jsx` or the lockfile change.
-The bundle is about 12 MB, mostly Shiki's grammars, and every page carries it.
+The bundle is about 12 MB and every page carries it. Code is highlighted with the library's "highlights" engine, which keeps switching between changes instant.
 
 - **Editor:** files open in Zed. Set `GUIDED_REVIEW_EDITOR`, for example `vscode://file/{path}` or
   `cursor://file/{path}`. The link opens the file in the working copy, which may differ from the change shown.

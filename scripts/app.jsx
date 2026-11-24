@@ -51,6 +51,7 @@ const baseOptions = {
   theme: { light: "pierre-light", dark: "pierre-dark" },
   stickyHeaders: true,
   lineDiffType: "word",
+  preferredHighlighter: "highlights",
   itemMetrics: { lineHeight: 24 },
   layout: { paddingTop: 16, paddingBottom: 48, gap: 16 },
 };
