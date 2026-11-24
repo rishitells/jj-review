@@ -26,19 +26,35 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text-2
 .resizer::after { content: ""; position: absolute; inset: 0 -3px; }
 .resizer:hover, .resizer[data-separator="active"], .resizer:focus-visible { background: var(--bar); }
 .eyebrow { margin: 0 0 8px; font-size: 12px; color: var(--text-3); }
-.changes { list-style: none; margin: 0 0 12px; padding: 0; border-bottom: 1px solid var(--line); }
-.changes button { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; width: 100%; padding: 7px 8px; border: 0;
-  background: none; text-align: left; font: inherit; font-size: 13px; color: var(--text-2); cursor: pointer; }
-.changes button:hover { background: var(--surface-2); }
-.changes button[aria-current="true"] { background: var(--surface-2); color: var(--text); font-weight: 550; box-shadow: inset 2px 0 0 var(--bar); }
-.subject { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The chain: one node per change, newest at the top, joined by a line like jj log's graph. The open change shows its
+   full subject, its meta and its description. */
+.chain { list-style: none; margin: 0 0 12px; padding: 0 0 8px; border-bottom: 1px solid var(--line); }
+.chain li { position: relative; padding-left: 22px; }
+.chain li::before { content: ""; position: absolute; left: 9.25px; top: 0; bottom: 0; width: 1.5px; background: color-mix(in oklab, var(--text-3) 55%, transparent); }
+.chain li:first-child::before { top: 15px; }
+.chain li:last-child::before { bottom: auto; height: 15px; }
+.chain li:only-child::before { display: none; }
+.chain .node { position: absolute; left: 5px; top: 11px; width: 10px; height: 10px; box-sizing: border-box; border-radius: 50%;
+  border: 1.5px solid var(--text-3); background: var(--bg); z-index: 1; }
+.chain li.is-open .node { border-color: var(--bar); background: var(--bar); }
+.chain .row { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; width: 100%; padding: 6px 8px; border: 0;
+  border-radius: 6px; background: none; text-align: left; font: inherit; font-size: 13px; line-height: 1.45; color: var(--text-2); cursor: pointer; }
+.chain .row:hover { background: var(--surface-2); }
+.chain li.is-open .row { color: var(--text); font-weight: 550; cursor: default; }
+.chain li.is-open .row { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+.chain li.is-open .row:hover { background: none; }
+.chain .subject { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chain li.is-open .subject { white-space: normal; text-wrap: pretty; }
+.chain .detail { max-height: 38vh; overflow: auto; padding: 0 8px 10px 8px; font-size: 13px; line-height: 1.65; color: var(--text-2); }
+.chain .detail p { margin: 0 0 8px; }
+.chain .detail .meta { font-size: 12px; color: var(--text-3); }
+.chain .detail code { font: 450 11.5px var(--mono); }
 .cid { font: 450 12px/1.6 var(--mono); color: var(--text-3); }
 .cid b { font-weight: 600; color: var(--plum); }
 .tree { flex: 1; min-height: 0; }
 .main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-.head { padding: 20px 28px 16px; border-bottom: 1px solid var(--line); }
-.head h1 { margin: 0 0 6px; font-size: 22px; line-height: 1.3; color: var(--text); text-wrap: balance; }
-.head .body { margin: 0 0 10px; max-width: 80ch; font-size: 14.5px; line-height: 1.75; }
+.head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 12px 28px; border-bottom: 1px solid var(--line); }
+.head .eyebrow { margin: 0; }
 .layout { display: inline-flex; margin-top: 4px; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--line); }
 .layout button { border: 0; background: none; padding: 3px 10px; font: inherit; font-size: 12px; color: var(--text-3); cursor: pointer; border-radius: 6px; }
 .layout button[aria-pressed="true"] { background: var(--surface-2); color: var(--text); }
@@ -47,7 +63,7 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text-2
 .diffs { flex: 1; min-height: 0; overflow: auto; padding: 0 28px; --diffs-font-family: "JetBrains Mono"; --diffs-header-font-family: "JetBrains Mono"; --diffs-font-size: 12.5px; --diffs-line-height: 24px; font-weight: 350; }
 .diffs diffs-container { display: block; border: 1px solid var(--line); border-radius: 8px; overflow: clip; }
 .tree { --trees-bg-override: var(--bg); --trees-search-bg-override: var(--bg); --trees-input-bg-override: var(--bg); --trees-font-family-override: "JetBrains Mono", ui-monospace, monospace; --trees-font-weight-regular-override: 350; }
-.controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; }
 .controls .layout { margin-top: 0; }
 .file-actions { display: inline-flex; align-items: center; gap: 10px; }
 .viewed { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px 2px 6px; border: 0; border-radius: 6px; background: none;
@@ -61,9 +77,10 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text-2
 .viewed[aria-pressed="true"] svg { stroke: var(--bg); }
 .viewed:focus-visible { outline: 2px solid var(--bar); outline-offset: 1px; }
 .viewed-count { margin: 0; padding: 10px 4px 14px; border-top: 1px solid var(--line); font-size: 12px; color: var(--text-3); }
-.live { margin-left: 8px; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 500; color: var(--green);
+.live { display: inline-flex; align-items: center; gap: 6px; margin-left: 10px; padding: 3px 10px 3px 9px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 500; line-height: 1.3; color: var(--green); vertical-align: 1px;
   box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--green) 35%, transparent); }
-.live::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 5px; border-radius: 50%; background: currentColor; vertical-align: 1px; }
+.live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
 .live.reconnecting { color: var(--text-3); box-shadow: inset 0 0 0 1px var(--line); }
 .empty { padding: 48px 28px; }
 .empty h1 { font-size: 22px; color: var(--text); margin: 0 0 8px; }

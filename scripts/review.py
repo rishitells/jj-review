@@ -187,7 +187,6 @@ def serve(review, no_open):
             state["op"] = op
 
     threading.Thread(target=watch, daemon=True).start()
-    shell = page("Review: " + review.settings["repo"])
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
@@ -203,7 +202,8 @@ def serve(review, no_open):
         def do_GET(self):
             path = urlsplit(self.path).path
             if path == "/":
-                self.send(200, "text/html; charset=utf-8", shell.encode())
+                # Built per load (the bundle only when its sources changed), so a reload picks up page edits.
+                self.send(200, "text/html; charset=utf-8", page("Review: " + review.settings["repo"]).encode())
             elif path == "/data":
                 try:
                     with lock:

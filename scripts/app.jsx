@@ -292,15 +292,32 @@ function App({ initial }) {
               {status === "live" ? "Live" : "Reconnecting"}
             </span>
           </p>
-          <ol className="changes">
-            {data.changes.map((c) => (
-              <li key={c.change}>
-                <button type="button" aria-current={c.change === change.change} onClick={() => setSelected(c.change)}>
-                  <ChangeId change={c} />
-                  <span className="subject">{c.subject}</span>
-                </button>
-              </li>
-            ))}
+          <ol className="chain" aria-label="Changes, newest first">
+            {[...data.changes].reverse().map((c) => {
+              const open = c.change === change.change;
+              const cAdds = c.files.reduce((n, f) => n + f.adds, 0);
+              const cDels = c.files.reduce((n, f) => n + f.dels, 0);
+              return (
+                <li key={c.change} className={open ? "is-open" : undefined}>
+                  <span className="node" aria-hidden="true" />
+                  <button type="button" className="row" aria-expanded={open} onClick={() => setSelected(c.change)}>
+                    <ChangeId change={c} />
+                    <span className="subject">{c.subject}</span>
+                  </button>
+                  {open && (
+                    <div className="detail">
+                      <p className="meta">
+                        commit <code>{c.commit.slice(0, 8)}</code> · <span className="add">+{cAdds}</span>{" "}
+                        <span className="del">−{cDels}</span> · {c.files.length} {c.files.length === 1 ? "file" : "files"}
+                      </p>
+                      {paragraphs(c.body).map((p, i) => (
+                        <p key={i}>{p}</p>
+                      ))}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ol>
           <Tree key={change.change} change={change} viewed={viewed} onOpen={open} />
           <p className="viewed-count">
@@ -316,12 +333,6 @@ function App({ initial }) {
               <ChangeId change={change} /> · commit <code>{change.commit.slice(0, 8)}</code> ·{" "}
               <span className="add">+{adds}</span> <span className="del">−{dels}</span> · {change.files.length} files
             </p>
-            <h1>{change.subject}</h1>
-            {paragraphs(change.body).map((p, i) => (
-              <p key={i} className="body">
-                {p}
-              </p>
-            ))}
             <div className="controls">
               <div className="layout" role="group" aria-label="Diff layout">
                 <Toggle label="Single" pressed={display.diffStyle === "unified"} onChange={() => show({ diffStyle: "unified" })} />

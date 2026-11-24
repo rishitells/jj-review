@@ -8,11 +8,12 @@ description: "Serve jj changes as a live review page: the changes on the left, a
 `$GR/scripts/review.py` serves jj changes as a review page on a local port, opens it, and keeps it current until you
 stop it with Ctrl-C. `$GR` is this skill's directory.
 
-- **Left:** the changes in stack order, each with its change id (shortest unique prefix set off, as in `jj log`) and
-  subject, then the picked change's files as a tree ([@pierre/trees](https://diffs.com)) with git status and search.
+- **Left:** the changes as a chain, newest at the top as in `jj log`, each with its change id (shortest unique prefix
+  set off) and subject. The picked change opens in place: its full subject, commit, counts and description. Under the
+  chain, its files as a tree ([@pierre/trees](https://diffs.com)) with git status and search.
   Viewed files carry a tick, and a count sits under the tree. A "Live" badge turns to "Reconnecting" when the server
   stops. The divider resizes the sidebar and the width is remembered.
-- **Right:** the picked change's id, commit, counts and description, then every file's diff
+- **Right:** a slim bar with the picked change's id, commit and counts and the display toggles, then every file's diff
   ([@pierre/diffs](https://diffs.com)): single or split view (single by default), word-level changes, sticky file
   headers, and folded unchanged lines that open on click. Clicking a file in the tree scrolls to it.
 - **Per file:** "Viewed" folds the file and stays until that file's diff changes, even when the change is rewritten.
