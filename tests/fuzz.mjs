@@ -20,8 +20,8 @@ import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const SCRIPTS = join(HERE, "..", "scripts");
-const { chromium } = createRequire(join(SCRIPTS, "package.json"))("playwright");
+const ROOT = join(HERE, "..");
+const { chromium } = createRequire(join(ROOT, "package.json"))("playwright");
 
 const args = process.argv.slice(2);
 const arg = (name, fallback) => {
@@ -73,7 +73,7 @@ function binary() {
 
 // ---------------------------------------------------------------- the repository
 
-const REPO = mkdtempSync(join(tmpdir(), "guided-review-fuzz-"));
+const REPO = mkdtempSync(join(tmpdir(), "jj-review-fuzz-"));
 
 function jj(...a) {
   return execFileSync("jj", ["--no-pager", "--color=never", ...a], { cwd: REPO, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
@@ -260,8 +260,8 @@ async function main() {
   for (let i = 0; i < 3; i++) { jj("new", "-m", message()); editFiles(); jj("status"); }
 
   const port = 20000 + int(20000);
-  const server = spawn(PYTHON, [join(SCRIPTS, "review.py"), "--no-open"], {
-    cwd: REPO, env: { ...process.env, GUIDED_REVIEW_PORT: String(port) }, stdio: ["ignore", "ignore", "pipe"],
+  const server = spawn(PYTHON, [join(ROOT, "server", "review.py"), "--no-open"], {
+    cwd: REPO, env: { ...process.env, JJ_REVIEW_PORT: String(port) }, stdio: ["ignore", "ignore", "pipe"],
   });
   let serverLog = "";
   server.stderr.on("data", (d) => (serverLog += d));

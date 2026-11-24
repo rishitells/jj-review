@@ -1,12 +1,7 @@
----
-name: guided-review
-description: "Serve jj changes as a live review page: the changes on the left, and for the one you pick its description, a file tree and every file's diff, with links that open files in an editor. The page follows the repository as jj records operations. Use when asked to show, review or look over jj changes, a stack, a bookmark or a revset as a page."
----
+# jj-review
 
-# Live review page for jj changes
-
-`$GR/scripts/review.py` serves jj changes as a review page on a local port, opens it, and keeps it current until you
-stop it with Ctrl-C. `$GR` is this skill's directory.
+`jj review` serves jj changes as a review page on a local port, opens it, and keeps it current until you stop it with
+Ctrl-C.
 
 - **Left:** the picked change's files as a tree ([@pierre/trees](https://diffs.com)) with git status and search, and
   under it the changes as a chain, newest at the top as in `jj log`, each with its change id (shortest unique prefix
@@ -23,8 +18,9 @@ stop it with Ctrl-C. `$GR` is this skill's directory.
 - **Display:** Wrap lines and Expand all (every unchanged line shown), remembered with the single or split choice.
 - **Theme:** a dropdown at the foot of the sidebar picks the diffs' theme, a light and dark pair: Pierre (the
   default) and its variants, warm ones (Gruvbox, Rosé Pine, Dawnfox, Everforest, Kanagawa, Solarized, Horizon) and
-  cool or neutral ones (JetBrains and JetBrains Islands, Nightfox and Nordfox among them). A switch on top picks the mode: System (follows the computer), Light or Dark. The page takes the
-  theme's background and keeps its own text. Both are remembered.
+  cool or neutral ones (JetBrains and JetBrains Islands, Nightfox and Nordfox among them). A switch on top picks the
+  mode: System (follows the computer), Light or Dark. The page takes the theme's background and keeps its own text.
+  Both are remembered.
 
 The code comes from git through jj: each change against its first parent. Nothing on the page is written by hand.
 
@@ -50,58 +46,58 @@ updates in place: only files whose diff changed are redrawn, and the picked chan
   can strain on very large repositories. Starting the server records the working copy once either way.
 - Other workspaces share the operation log, so their commands make the page look again; nothing changes on it unless
   this range changed.
-- Nothing is written to disk. The page is built in memory and the data is read from jj on request. Each run gets a
-  free port (`GUIDED_REVIEW_PORT` picks one).
+- Nothing is written to disk but the page's script (below). The page is built in memory and the data is read from jj
+  on request. Each run gets a free port (`JJ_REVIEW_PORT` picks one).
 
 ## Run it
 
 ```bash
-python3 $GR/scripts/review.py                      # from the working copy down to the nearest bookmark or trunk
-python3 $GR/scripts/review.py 'trunk()..@'         # the whole stack
-python3 $GR/scripts/review.py @-                   # one change
-python3 $GR/scripts/review.py -R <repo> --no-open  # another repository's workspace root; don't open the browser
+jj review                       # from the working copy down to the nearest bookmark or trunk
+jj review 'trunk()..@'          # the whole stack
+jj review @-                    # one change
+jj review -R <repo> --no-open   # another repository's workspace root; don't open the browser
 ```
 
 Changes without a diff are left out. With none in the range, the page says so and fills in when some appear.
 
 ## Setup
 
-Run `npm ci` in `$GR/scripts` once. The first run bundles the page's script (React, @pierre/diffs, @pierre/trees,
-react-resizable-panels) with esbuild into `scripts/bundle.js`, and rebuilds it when `app.jsx` or the lockfile change.
-That bundle is the only file the skill keeps. Code is highlighted with the library's "highlights" engine, which keeps
-switching between changes instant.
-
-- **Editor:** files open in Zed. Set `GUIDED_REVIEW_EDITOR`, for example `vscode://file/{path}` or
-  `cursor://file/{path}`. The link opens the file in the working copy, which may differ from the change shown.
-- **Network:** the server listens on 127.0.0.1 only and serves both versions of every file in the range.
-
-## As a jj command
-
-Add an alias to your jj config (`jj config edit --user`):
+Clone this repository, run `npm ci` in it once, and add an alias to your jj config (`jj config edit --user`), with
+the path to your clone:
 
 ```toml
 [aliases]
-review = ["util", "exec", "--", "python3", "<$GR>/scripts/review.py"]
+review = ["util", "exec", "--", "python3", "/path/to/jj-review/server/review.py"]
 ```
 
-Then `jj review`, `jj review @-` or `jj review 'trunk()..@'` from anywhere in the repository.
+Then `jj review` works from anywhere in any repository. Without the alias, `python3 server/review.py` takes the same
+arguments.
+
+The first run bundles the page's script (React, @pierre/diffs, @pierre/trees, react-resizable-panels) with esbuild
+into `build/bundle.js`, and rebuilds it when the page's code, its themes or the lockfile change. That bundle is the
+only file it writes. Code is highlighted with the library's "highlights" engine, which keeps switching between
+changes instant.
+
+- **Editor:** files open in Zed. Set `JJ_REVIEW_EDITOR`, for example `vscode://file/{path}` or
+  `cursor://file/{path}`. The link opens the file in the working copy, which may differ from the change shown.
+- **Network:** the server listens on 127.0.0.1 only and serves both versions of every file in the range.
 
 ## Files
 
-- `scripts/review.py` reads the changes with jj and git, serves the page, its data and the change stream.
-- `scripts/diff.py` reads a git diff into files and hunks, for the counts and file statuses.
-- `scripts/app.jsx` is the page: the change list, the tree, the diffs, the theme picker, and the live updates.
-- `scripts/themes/themes.js` lists the themes the picker offers, each pair with the colours of its preview.
-- `scripts/themes/jetbrains/` and `scripts/themes/nightfox/` hold themes that don't ship with Pierre, copied from Zed
+- `server/review.py` reads the changes with jj and git, serves the page, its data and the change stream.
+- `server/diff.py` reads a git diff into files and hunks, for the counts and file statuses.
+- `web/app.jsx` is the page: the change list, the tree, the diffs, the theme picker, and the live updates.
+- `web/page.html` holds the page's shell and its Fresh styles: Fixel (`font.css`, SIL Open Font License 1.1) for
+  text, JetBrains Mono for code.
+- `web/themes/themes.js` lists the themes the picker offers, each pair with the colours of its preview.
+- `web/themes/jetbrains/` and `web/themes/nightfox/` hold themes that don't ship with Pierre, copied from Zed
   extensions with their licences: JetBrains (Apache 2.0, zed-theme-jetbrains) and the Nightfox family (MIT,
   nightfox.zed).
-- `scripts/page.html` holds the page's shell and its Fresh styles: Fixel (`font.css`, SIL Open Font License 1.1) for
-  text, JetBrains Mono for code.
 - `tests/fuzz.mjs` is the fuzz test (below).
 
 ## Testing
 
-`tests/fuzz.mjs` builds a scratch jj repository, starts `review.py` on it and opens the page in headless Chromium
+`tests/fuzz.mjs` builds a scratch jj repository, starts the server on it and opens the page in headless Chromium
 (Playwright, a dev dependency: `npm ci` installs it; `npx playwright install chromium` once if no browser is cached).
 It then applies random jj operations: new changes, inserts before and after, rewording, file edits inside any change,
 squash, abandon, reordering (with the conflicts that brings), moving the base bookmark, empty changes and undo. Files
@@ -111,7 +107,7 @@ against jj and git (changes, order, files, statuses, counts, contents), that the
 and that Viewed holds until a file's diff changes.
 
 ```bash
-cd $GR && node tests/fuzz.mjs --cases 300            # a random seed, printed first
+node tests/fuzz.mjs --cases 300            # a random seed, printed first
 node tests/fuzz.mjs --seed 42 --cases 300 --keep     # replay a run exactly; keep the repository
 ```
 

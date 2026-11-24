@@ -6,14 +6,14 @@
 With no revset it shows the stack the working copy is in: from the nearest ancestor that has a bookmark (or trunk)
 up through the working copy and the changes on top of it. Changes without a diff (an empty working copy) are left out. The page lists the changes; picking one shows its
 description, its files as a tree and every file's diff (@pierre/diffs, single or split). Each file opens in your
-editor: Zed unless GUIDED_REVIEW_EDITOR says otherwise (for example 'vscode://file/{path}').
+editor: Zed unless JJ_REVIEW_EDITOR says otherwise (for example 'vscode://file/{path}').
 
 It serves the page on a local port and keeps it current: whenever a jj command records an operation (describe,
 squash, new, a rebase, someone else's commit), the page updates in place. Edits jj hasn't recorded yet show up after
 the next jj command. Nothing is written to disk; Ctrl-C stops it.
 
-The page's script is bundled with esbuild the first time, and again when app.jsx or the packages change, so run
-`npm ci` in this folder once.
+The page's script is bundled with esbuild into build/ the first time, and again when web/ or the packages change, so
+run `npm ci` in the repository once.
 """
 import argparse
 import hashlib
@@ -29,8 +29,9 @@ from urllib.parse import urlsplit
 
 from diff import parse_diff
 
-ROOT = Path(__file__).parent
-BUNDLE = ROOT / "bundle.js"
+ROOT = Path(__file__).resolve().parent.parent
+WEB = ROOT / "web"
+BUNDLE = ROOT / "build" / "bundle.js"
 # From the nearest bookmarked ancestor (or trunk) up through the working copy and everything stacked on it, so
 # editing a change in the middle of a stack keeps the changes above it on the page.
 DEFAULT_REVSET = "heads(::@- & (trunk() | bookmarks()))..descendants(@)"
@@ -156,7 +157,7 @@ class Review:
         self.repo, self.revset, self.snapshot = repo, revset, snapshot
         self.workspace = jj(repo, "workspace", "root", snapshot=snapshot).strip()
         self.by_commit = {}
-        editor = os.environ.get("GUIDED_REVIEW_EDITOR") or "zed://file/{path}"
+        editor = os.environ.get("JJ_REVIEW_EDITOR") or "zed://file/{path}"
         self.snapshots_on_save = snapshots_on_save(repo)
         self.settings = {
             "snapshotsOnSave": self.snapshots_on_save,
@@ -164,7 +165,7 @@ class Review:
             "repo": Path(self.workspace).name,
             "revset": revset,
             "editor": editor,
-            "editorName": os.environ.get("GUIDED_REVIEW_EDITOR_NAME") or urlsplit(editor).scheme.capitalize(),
+            "editorName": os.environ.get("JJ_REVIEW_EDITOR_NAME") or urlsplit(editor).scheme.capitalize(),
         }
 
     def data(self):
@@ -183,15 +184,15 @@ class Review:
 
 def bundle():
     """The page's script, rebuilt when its sources are newer than the last build."""
-    sources = [ROOT / "app.jsx", ROOT / "package-lock.json", *(f for f in (ROOT / "themes").rglob("*") if f.is_file())]
+    sources = [WEB / "app.jsx", ROOT / "package-lock.json", *(f for f in (WEB / "themes").rglob("*") if f.is_file())]
     if BUNDLE.exists() and BUNDLE.stat().st_mtime >= max(s.stat().st_mtime for s in sources):
         return BUNDLE.read_text()
     esbuild = ROOT / "node_modules" / ".bin" / "esbuild"
     if not esbuild.exists():
         sys.exit(f"The page's packages aren't installed: run `npm ci` in {ROOT}")
     subprocess.run(
-        [str(esbuild), "app.jsx", "--bundle", "--format=iife", "--jsx=automatic", "--minify", "--log-level=warning",
-         '--define:process.env.NODE_ENV="production"', f"--outfile={BUNDLE.name}"],
+        [str(esbuild), "web/app.jsx", "--bundle", "--format=iife", "--jsx=automatic", "--minify", "--log-level=warning",
+         '--define:process.env.NODE_ENV="production"', f"--outfile={BUNDLE.relative_to(ROOT)}"],
         cwd=ROOT, check=True,
     )
     return BUNDLE.read_text()
@@ -199,10 +200,10 @@ def bundle():
 
 def page(title):
     """The page shell: the bundled app, which asks the server for its data."""
-    out = (ROOT / "page.html").read_text()
+    out = (WEB / "page.html").read_text()
     for key, value in {
         "{{TITLE}}": title,
-        "{{FONT_CSS}}": (ROOT / "font.css").read_text(),
+        "{{FONT_CSS}}": (WEB / "font.css").read_text(),
         "{{BUNDLE}}": bundle().replace("</script", "<\\/script"),
     }.items():
         out = out.replace(key, value)
@@ -283,7 +284,7 @@ def serve(review, no_open):
             else:
                 self.send(404, "text/plain", b"not found")
 
-    server = ThreadingHTTPServer(("127.0.0.1", int(os.environ.get("GUIDED_REVIEW_PORT", "0"))), Handler)
+    server = ThreadingHTTPServer(("127.0.0.1", int(os.environ.get("JJ_REVIEW_PORT", "0"))), Handler)
     server.daemon_threads = True
     url = f"http://127.0.0.1:{server.server_address[1]}/"
     print(f"Reviewing {review.revset} in {review.settings['repo']} at {url} (live; Ctrl-C stops it)", file=sys.stderr)

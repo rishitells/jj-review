@@ -30,7 +30,7 @@ const store = (key, value) => {
 // Viewed marks are kept per change id as { path: diff signature }: a file stays viewed until its diff changes, even
 // when the change is rewritten around it.
 const marksCache = new Map();
-const marksKey = (changeId) => `guided-review:viewed:${SETTINGS.repo}:${changeId}`;
+const marksKey = (changeId) => `jj-review:viewed:${SETTINGS.repo}:${changeId}`;
 const marksOf = (changeId) => {
   if (!marksCache.has(changeId)) marksCache.set(changeId, stored(marksKey(changeId), {}));
   return marksCache.get(changeId);
@@ -444,11 +444,11 @@ function App({ initial }) {
   const [selected, setSelected] = useState(initial.changes.at(-1)?.change);
   const [, setMarksTick] = useState(0);
   const [display, setDisplay] = useState(() =>
-    stored("guided-review:display", { diffStyle: "unified", wrap: false, expandAll: false })
+    stored("jj-review:display", { diffStyle: "unified", wrap: false, expandAll: false })
   );
-  const [themeId, setThemeId] = useState(() => themeOf(stored("guided-review:theme", THEMES[0].id)).id);
+  const [themeId, setThemeId] = useState(() => themeOf(stored("jj-review:theme", THEMES[0].id)).id);
   const [mode, setMode] = useState(() => {
-    const saved = stored("guided-review:mode", "system");
+    const saved = stored("jj-review:mode", "system");
     return MODES.some((m) => m.id === saved) ? saved : "system";
   });
   usePageTheme(themeId, mode);
@@ -458,16 +458,16 @@ function App({ initial }) {
   const change = data.changes.find((c) => c.change === selected) ?? data.changes.at(-1);
   const pickTheme = (id) => {
     setThemeId(id);
-    store("guided-review:theme", id);
+    store("jj-review:theme", id);
   };
   const pickMode = (next) => {
     setMode(next);
-    store("guided-review:mode", next);
+    store("jj-review:mode", next);
   };
   const show = (next) => {
     const merged = { ...display, ...next };
     setDisplay(merged);
-    store("guided-review:display", merged);
+    store("jj-review:display", merged);
   };
 
   if (!change) {

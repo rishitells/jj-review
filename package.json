@@ -1,5 +1,5 @@
 {
-  "name": "guided-review",
+  "name": "jj-review",
   "private": true,
   "type": "module",
   "description": "The review page: @pierre/diffs for the diffs, @pierre/trees for the file tree, bundled by esbuild.",
