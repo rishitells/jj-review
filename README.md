@@ -49,8 +49,11 @@ updates in place: only files whose diff changed are redrawn, and the picked chan
   can strain on very large repositories. Starting the server records the working copy once either way.
 - Other workspaces share the operation log, so their commands make the page look again; nothing changes on it unless
   this range changed.
-- Nothing is written to disk but the page's script (below). The page is built in memory and the data is read from jj
-  on request. Each run gets a free port (`JJ_REVIEW_PORT` picks one).
+- Nothing is written to disk but the page's script (below). The page is built in memory and the data is read from jj on
+  request. Each workspace has its own port in 10100–10199 (J is the 10th letter, so jj is 10 10), the same on every run,
+  so the page keeps its address and what it remembers. If the same review is already running, `jj review` opens it
+  instead of starting another; a second range in the same workspace takes the next free port. `JJ_REVIEW_PORT` picks
+  one.
 
 ## Run it
 

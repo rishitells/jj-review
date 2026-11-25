@@ -19,6 +19,7 @@ import argparse
 import hashlib
 import json
 import os
+import socket
 import subprocess
 import sys
 import threading
@@ -26,6 +27,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
+from urllib.request import urlopen
 
 from diff import parse_diff
 
@@ -35,6 +37,9 @@ BUNDLE = ROOT / "build" / "bundle.js"
 # From the nearest bookmarked ancestor (or trunk) up through the working copy and everything stacked on it, so
 # editing a change in the middle of a stack keeps the changes above it on the page.
 DEFAULT_REVSET = "heads(::@- & (trunk() | bookmarks()))..descendants(@)"
+# J is the 10th letter, so jj is 10 10: each workspace gets its own port in 10100-10199, the same on every run. The
+# browser keeps what the page remembers (Viewed, theme, display) per address, so a stable port keeps all of it.
+PORTS = range(10100, 10200)
 
 
 def jj_bytes(repo, *args, snapshot=True):
@@ -215,9 +220,49 @@ def open_in_browser(target):
     subprocess.run(["open" if sys.platform == "darwin" else "xdg-open", target])
 
 
+def ports_for(workspace):
+    """The workspace's ports in the order it tries them: its own first, then the ones after it, wrapping round."""
+    start = int(hashlib.sha256(workspace.encode()).hexdigest(), 16) % len(PORTS)
+    return [PORTS[(start + i) % len(PORTS)] for i in range(len(PORTS))]
+
+
+def who_answers(port):
+    """None when nothing listens on the port, a review's identity when jj-review does, False for anything else."""
+    try:
+        socket.create_connection(("127.0.0.1", port), timeout=0.3).close()
+    except OSError:
+        return None
+    try:
+        with urlopen(f"http://127.0.0.1:{port}/whoami", timeout=1) as response:
+            who = json.loads(response.read())
+        return who if isinstance(who, dict) and who.get("app") == "jj-review" else False
+    except Exception:
+        return False
+
+
+def pick_port(review):
+    """The port to serve on, and whether the same review is already running there. JJ_REVIEW_PORT picks one outright."""
+    if os.environ.get("JJ_REVIEW_PORT"):
+        return int(os.environ["JJ_REVIEW_PORT"]), False
+    for port in ports_for(review.workspace):
+        who = who_answers(port)
+        if who is None:
+            return port, False
+        if who and who.get("workspace") == review.workspace and who.get("revset") == review.revset:
+            return port, True
+    return 0, False
+
+
 def serve(review, no_open):
     """Serves the page, its data, and a stream that says when jj recorded a new operation. Nothing is written to disk:
     the page is built in memory and the data is read from jj on each request."""
+    port, running = pick_port(review)
+    if running:
+        url = f"http://127.0.0.1:{port}/"
+        print(f"Already reviewing {review.revset} in {review.settings['repo']} at {url}", file=sys.stderr)
+        if not no_open:
+            open_in_browser(url)
+        return
     # Record the working copy once, as any jj command would, so edits made before starting show up.
     jj(review.repo, "log", "--no-graph", "-r", "@", "-T", '""')
     state = {"op": review.operation()}
@@ -253,6 +298,9 @@ def serve(review, no_open):
             if path == "/":
                 # Built per load (the bundle only when its sources changed), so a reload picks up page edits.
                 self.send(200, "text/html; charset=utf-8", page("Review: " + review.settings["repo"]).encode())
+            elif path == "/whoami":
+                who = {"app": "jj-review", "workspace": review.workspace, "revset": review.revset}
+                self.send(200, "application/json", json.dumps(who).encode())
             elif path == "/data":
                 try:
                     with lock:
@@ -285,7 +333,12 @@ def serve(review, no_open):
             else:
                 self.send(404, "text/plain", b"not found")
 
-    server = ThreadingHTTPServer(("127.0.0.1", int(os.environ.get("JJ_REVIEW_PORT", "0"))), Handler)
+    try:
+        server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    except OSError:
+        if os.environ.get("JJ_REVIEW_PORT"):
+            raise
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)  # taken since it was checked: any free port
     server.daemon_threads = True
     url = f"http://127.0.0.1:{server.server_address[1]}/"
     print(f"Reviewing {review.revset} in {review.settings['repo']} at {url} (live; Ctrl-C stops it)", file=sys.stderr)
