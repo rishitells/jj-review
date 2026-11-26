@@ -59,13 +59,17 @@ updates in place: only files whose diff changed are redrawn, and the picked chan
 ## Run it
 
 ```bash
-jj review                       # from the working copy down to the nearest bookmark or trunk
-jj review 'trunk()..@'          # the whole stack
+jj review                       # the stack you're in: from the nearest bookmark or trunk up through @ and above it
+jj review 'main:: ~ main'       # everything on top of main
+jj review 'trunk()..@'          # the line up to the working copy
 jj review @-                    # one change
 jj review -R <repo> --no-open   # another repository's workspace root; don't open the browser
 ```
 
-Changes without a diff are left out. With none in the range, the page says so and fills in when some appear.
+The argument is any jj revset, as `jj log -r` takes it, your revset aliases included. It's one argument, so ranges
+combine with `|`, and it's read again whenever jj records an operation, so `@`, bookmarks and `trunk()` follow the
+repository as it moves. Changes without a diff are left out. With none in the range, the page says so and fills in
+when some appear.
 
 ## Setup
 
@@ -94,8 +98,8 @@ changes instant.
 - `server/review.py` reads the changes with jj and git, serves the page, its data and the change stream.
 - `server/diff.py` reads a git diff into files and hunks, for the counts and file statuses.
 - `web/app.jsx` is the page: the change list, the tree, the diffs, the theme picker, and the live updates.
-- `web/page.html` holds the page's shell and its Fresh styles: Fixel (`font.css`, SIL Open Font License 1.1) for
-  text, JetBrains Mono for code.
+- `web/page.html` holds the page's shell and its Fresh styles: Fixel (`font.css`, SIL Open Font License 1.1, with
+  its licence in `web/fixel/`) for text, JetBrains Mono for code.
 - `web/themes/themes.js` lists the themes the picker offers, each pair with the colours of its preview.
 - `web/themes/jetbrains/` and `web/themes/nightfox/` hold themes that don't ship with Pierre, copied from Zed
   extensions with their licences: JetBrains (Apache 2.0, zed-theme-jetbrains) and the Nightfox family (MIT,
@@ -121,3 +125,7 @@ node tests/fuzz.mjs --seed 42 --cases 300 --keep     # replay a run exactly; kee
 `PYTHON=…` picks the interpreter for `review.py`. A failure names its seed and case; `--keep-going` reports every
 failing case instead of stopping at the first. A case takes about two seconds, mostly waiting for the live page
 to catch up, so 150 cases take about five minutes. One run at a time: it drives a browser and many jj commands.
+
+## License
+
+MIT (`LICENSE`). The Fixel font and the JetBrains and Nightfox themes keep their own licences, beside them in `web/`.

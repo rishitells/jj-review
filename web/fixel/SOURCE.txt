@@ -1,0 +1,2 @@
+The Fixel typeface, embedded in ../font.css as base64 WOFF2 and unchanged, is from https://github.com/MacPaw/Fixel
+(Copyright (c) 2023 MacPaw Way Ltd.), licensed under the SIL Open Font License 1.1: OFL.txt here.
