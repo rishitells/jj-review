@@ -6,7 +6,8 @@ Ctrl-C.
 - **Left:** the picked change's files as a tree ([@pierre/trees](https://diffs.com)) with git status and search, and
   under it the changes as a chain, newest at the top as in `jj log`, each with its change id (shortest unique prefix
   set off) and subject. The picked change opens in place: its full subject, commit, counts and description. The tree
-  sits above the chain so its rows stay put when another change opens.
+  and the chain each scroll in their own pane, the tree above so its rows stay put when another change opens; the
+  divider between them resizes them and is remembered.
   Viewed files carry a tick, and a count sits under the tree. A "Live" badge turns to "Reconnecting" when the server
   stops. The divider resizes the sidebar and the width is remembered.
 - **Right:** a slim bar with the picked change's id, commit and counts and the display toggles, then every file's diff

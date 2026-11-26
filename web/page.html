@@ -37,10 +37,15 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text-2
 .resizer { width: 1px; background: var(--line); position: relative; outline: none; }
 .resizer::after { content: ""; position: absolute; inset: 0 -3px; }
 .resizer:hover, .resizer[data-separator="active"], .resizer:focus-visible { background: var(--bar); }
+/* The sidebar's own split: the file tree and its count above, the changes below, the theme picker under both. */
+.side-split { flex: 1; min-height: 0; }
+.files-pane, .changes-pane { display: flex; flex-direction: column; min-height: 0; }
+.resizer-row { width: auto; height: 1px; }
+.resizer-row::after { inset: -3px 0; }
 .eyebrow { margin: 0 0 8px; font-size: 12px; color: var(--text-3); }
 /* The chain: one node per change, newest at the top, joined by a line like jj log's graph. The open change shows its
    full subject, its meta and its description. */
-.chain { flex: none; list-style: none; margin: 0; padding: 10px 0 12px; border-top: 1px solid var(--line); }
+.chain { flex: 1; min-height: 0; overflow: auto; list-style: none; margin: 0; padding: 10px 0 12px; }
 .chain li { position: relative; padding-left: 22px; }
 .chain li::before { content: ""; position: absolute; left: 9.25px; top: 0; bottom: 0; width: 1.5px; background: color-mix(in oklab, var(--text-3) 55%, transparent); }
 .chain li:first-child::before { top: 15px; }
@@ -57,7 +62,7 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text-2
 .chain li.is-open .row:hover { background: none; }
 .chain .subject { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chain li.is-open .subject { white-space: normal; text-wrap: pretty; }
-.chain .detail { max-height: 38vh; overflow: auto; padding: 0 8px 10px 8px; font-size: 13px; line-height: 1.65; color: var(--text-2); }
+.chain .detail { padding: 0 8px 10px 8px; font-size: 13px; line-height: 1.65; color: var(--text-2); }
 .chain .detail p { margin: 0 0 8px; }
 .chain .detail .meta { font-size: 12px; color: var(--text-3); }
 .chain .detail code { font: 450 11.5px var(--mono); }

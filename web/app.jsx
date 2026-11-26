@@ -537,8 +537,14 @@ function App({ initial }) {
   usePageTheme(themeId, mode);
   const viewerRef = useRef(null);
   const layout = useDefaultLayout({ id: "review-layout", storage: localStorage, onlySaveAfterUserInteractions: true });
+  const sideLayout = useDefaultLayout({ id: "side-layout", storage: localStorage, onlySaveAfterUserInteractions: true });
+  const chainRef = useRef(null);
 
   const change = data.changes.find((c) => c.change === selected) ?? data.changes.at(-1);
+  // The open change stays in view in its pane, however long the chain.
+  useEffect(() => {
+    chainRef.current?.querySelector(".is-open")?.scrollIntoView({ block: "nearest" });
+  }, [change?.change]);
   const pickTheme = (id) => {
     setThemeId(id);
     store("jj-review:theme", id);
@@ -597,37 +603,45 @@ function App({ initial }) {
               {status === "live" ? "Live" : "Reconnecting"}
             </span>
           </p>
-          <Tree key={change.change} change={change} viewed={viewed} onOpen={open} />
-          <p className="viewed-count">
-            {viewed.size} of {change.files.length} files viewed
-          </p>
-          <ol className="chain" aria-label="Changes, newest first">
-            {[...data.changes].reverse().map((c) => {
-              const open = c.change === change.change;
-              const cAdds = c.files.reduce((n, f) => n + f.adds, 0);
-              const cDels = c.files.reduce((n, f) => n + f.dels, 0);
-              return (
-                <li key={c.change} className={open ? "is-open" : undefined}>
-                  <span className="node" aria-hidden="true" />
-                  <button type="button" className="row" aria-expanded={open} onClick={() => setSelected(c.change)}>
-                    <ChangeId change={c} />
-                    <span className="subject">{c.subject}</span>
-                  </button>
-                  {open && (
-                    <div className="detail">
-                      <p className="meta">
-                        commit <code>{c.commit.slice(0, 8)}</code> · <span className="add">+{cAdds}</span>{" "}
-                        <span className="del">−{cDels}</span> · {c.files.length} {c.files.length === 1 ? "file" : "files"}
-                      </p>
-                      {paragraphs(c.body).map((p, i) => (
-                        <p key={i}>{p}</p>
-                      ))}
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ol>
+          {/* Files above, changes below, each scrolling in its own pane; the divider between them is remembered. */}
+          <Group className="side-split" orientation="vertical" id="side-layout" {...sideLayout}>
+            <Panel id="files" defaultSize="60%" minSize={120} className="files-pane">
+              <Tree key={change.change} change={change} viewed={viewed} onOpen={open} />
+              <p className="viewed-count">
+                {viewed.size} of {change.files.length} files viewed
+              </p>
+            </Panel>
+            <Separator className="resizer resizer-row" />
+            <Panel id="changes" defaultSize="40%" minSize={90} className="changes-pane">
+            <ol className="chain" ref={chainRef} aria-label="Changes, newest first">
+              {[...data.changes].reverse().map((c) => {
+                const open = c.change === change.change;
+                const cAdds = c.files.reduce((n, f) => n + f.adds, 0);
+                const cDels = c.files.reduce((n, f) => n + f.dels, 0);
+                return (
+                  <li key={c.change} className={open ? "is-open" : undefined}>
+                    <span className="node" aria-hidden="true" />
+                    <button type="button" className="row" aria-expanded={open} onClick={() => setSelected(c.change)}>
+                      <ChangeId change={c} />
+                      <span className="subject">{c.subject}</span>
+                    </button>
+                    {open && (
+                      <div className="detail">
+                        <p className="meta">
+                          commit <code>{c.commit.slice(0, 8)}</code> · <span className="add">+{cAdds}</span>{" "}
+                          <span className="del">−{cDels}</span> · {c.files.length} {c.files.length === 1 ? "file" : "files"}
+                        </p>
+                        {paragraphs(c.body).map((p, i) => (
+                          <p key={i}>{p}</p>
+                        ))}
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ol>
+            </Panel>
+          </Group>
           <footer className="side-foot">
             <ThemePicker value={themeId} onChange={pickTheme} mode={mode} onMode={pickMode} />
           </footer>
