@@ -14,4 +14,4 @@ for a ticket, `mine()`, `files("…")`, `description(substring:"…")`, `committ
 Check it with `jj log -r` first so the page shows what they meant, and tell them the revset you used.
 
 Run it in the background from their workspace; it opens the browser and prints the URL. Running the same review
-again just reopens it. If `jj review` isn't set up, the server is `../server/review.py` from this skill's folder.
+again just reopens it. If `jj review` isn't a command yet, point them to https://github.com/rishitells/jj-review#setup.

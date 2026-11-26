@@ -96,11 +96,11 @@ changes instant.
 ### For agents
 
 `skill/` is an agent skill, so you can ask Claude Code or Codex to "review the H2-160 stack" or "show everything on
-main" and it picks the revset, starts `jj review` and gives you the URL. Link it into your skill folders once:
+main" and it picks the revset, starts `jj review` and gives you the URL. Install it with the
+[skills](https://github.com/vercel-labs/skills) CLI, and `npx skills update` brings later versions:
 
 ```bash
-ln -s /path/to/jj-review/skill ~/.claude/skills/jj-review   # Claude Code
-ln -s /path/to/jj-review/skill ~/.agents/skills/jj-review   # Codex and other agents
+npx skills add rishitells/jj-review -g
 ```
 
 ## Files
