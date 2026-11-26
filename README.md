@@ -1,7 +1,7 @@
 # jj-review
 
-`jj review` serves jj changes as a review page on a local port, opens it, and keeps it current until you stop it with
-Ctrl-C.
+`jj review` serves [Jujutsu (jj)](https://github.com/jj-vcs/jj) changes as a review page on a local port, opens it,
+and keeps it current until you stop it with Ctrl-C.
 
 - **Left:** the picked change's files as a tree ([@pierre/trees](https://diffs.com)) with git status and search, and
   under it the changes as a chain, newest at the top as in `jj log`, each with its change id (shortest unique prefix
@@ -93,6 +93,16 @@ changes instant.
   `cursor://file/{path}`. The link opens the file in the working copy, which may differ from the change shown.
 - **Network:** the server listens on 127.0.0.1 only and serves both versions of every file in the range.
 
+### For agents
+
+`skill/` is an agent skill, so you can ask Claude Code or Codex to "review the H2-160 stack" or "show everything on
+main" and it picks the revset, starts `jj review` and gives you the URL. Link it into your skill folders once:
+
+```bash
+ln -s /path/to/jj-review/skill ~/.claude/skills/jj-review   # Claude Code
+ln -s /path/to/jj-review/skill ~/.agents/skills/jj-review   # Codex and other agents
+```
+
 ## Files
 
 - `server/review.py` reads the changes with jj and git, serves the page, its data and the change stream.
@@ -104,6 +114,7 @@ changes instant.
 - `web/themes/jetbrains/` and `web/themes/nightfox/` hold themes that don't ship with Pierre, copied from Zed
   extensions with their licences: JetBrains (Apache 2.0, zed-theme-jetbrains) and the Nightfox family (MIT,
   nightfox.zed).
+- `skill/SKILL.md` is the agent skill: how to turn what you ask for into a revset and start the page.
 - `tests/fuzz.mjs` is the fuzz test (below).
 
 ## Testing
